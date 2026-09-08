@@ -36,7 +36,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "YOUR-GITHUB-USERNAME",
+        "owner": "P0ult",
         "repo": "veil-browser",
         "releaseType": "draft"
       }
