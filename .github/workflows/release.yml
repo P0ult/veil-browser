@@ -29,6 +29,20 @@ jobs:
 
       - run: npm ci
 
+      # electron-builder uploads the installer and its blockmap as separate
+      # tasks. GitHub allows several drafts to share one tag, so if neither
+      # task finds an existing release they both create one and the assets end
+      # up split across two drafts. Making the release first means both upload
+      # into the same place.
+      - name: Open the draft release first
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes 'Unsigned build. Windows will show "Windows protected your PC" - choose More info, then Run anyway.'
+          fi
+
       - run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

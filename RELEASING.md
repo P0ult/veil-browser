@@ -54,6 +54,12 @@ GitHub-hosted Windows runner and uploads to a **draft** release. Nothing
 reaches anybody until you open Releases and press Publish — electron-updater
 ignores drafts, so a half-built version cannot escape.
 
+If you ever see **two drafts sharing one tag**, the assets have been split
+between them and only the one holding `latest.yml` is usable. Move the stray
+asset into that draft and delete the other. The workflow creates the release
+before building specifically to stop this, but a hand-run build without that
+step can still do it.
+
 To build on your own machine instead (needed once you sign locally — see
 below), set a GitHub token with `repo` scope in the environment and run:
 
