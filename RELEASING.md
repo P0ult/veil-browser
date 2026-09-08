@@ -112,6 +112,13 @@ Three realistic routes, cheapest first:
 | **OV certificate on a USB token** (Certum's open-source offering is the cheap end; Sectigo/DigiCert the expensive end) | ~€100–400/year | No — the token must be physically present | You sign on your own machine, with the token plugged in and a PIN typed by you. |
 | **EV certificate** | ~$400+/year | Only with a cloud HSM variant | Historically the fastest route to a clean SmartScreen prompt. |
 
+There is also **SignPath Foundation**, which issues free certificates to open
+source projects. It is worth applying to now that this repo is public and
+builds in GitHub Actions, but it is not something you can switch on today: an
+application has to be reviewed and accepted, and signing then has to happen
+inside CI on their terms. Treat it as a thing to set up over weeks, not the
+answer to "I want to hand this over tonight".
+
 Prices move; check before committing. Self-signed certificates are not on this
 list on purpose: Windows treats them exactly like no signature at all unless
 the recipient installs your root certificate first, which is a worse thing to
@@ -191,7 +198,22 @@ grep publisherName dist/win-unpacked/resources/app-update.yml
 ### Until it is signed
 
 Handing over an unsigned build is not unreasonable; it is just something to say
-out loud rather than let the recipient discover. Publish the SHA-512 that
-`latest.yml` already contains, tell them SmartScreen will complain, and tell
-them the update path is currently trusted on the strength of your GitHub
-account alone.
+out loud rather than let the recipient discover. Three things make it honest:
+
+1. **Publish a checksum in the release notes** and have them check it before
+   running anything:
+
+   ```powershell
+   Get-FileHash "$HOME\Downloads\Veil Setup 1.0.0.exe" -Algorithm SHA256
+   ```
+
+   This does not prove you built it — anyone can publish a hash for anything —
+   but it does prove the download was not corrupted or swapped in transit.
+
+2. **Warn them about SmartScreen.** "Windows protected your PC" → More info →
+   Run anyway. Someone who cares about privacy should be suspicious of that
+   screen, so tell them it is coming rather than let them decide alone.
+
+3. **Say what the update path rests on.** Until there is a signature, an
+   update is trusted because it came from your GitHub account over TLS. That
+   is a real guarantee, and a narrower one than a signed build gives.
