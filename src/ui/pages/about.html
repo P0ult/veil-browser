@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data:">
+<title>About Veil</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-veil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 19 6.6v5.1c0 4.3-2.9 7.8-7 8.8-4.1-1-7-4.5-7-8.8V6.6z"/><path d="M9.2 12.1 11.3 14l3.6-4"/></symbol>
+</svg>
+
+<div class="wrap" style="padding:56px 0 80px">
+  <div class="mark" style="margin-bottom:10px">
+    <svg><use href="#i-veil"/></svg>
+    <span class="name">Veil</span>
+  </div>
+  <p class="sub" style="margin-bottom:30px">Keeps nothing, shows nobody.</p>
+
+  <section class="card">
+    <h2>What it does not do</h2>
+    <div class="row"><div class="info"><label>No history</label><small>There is no history feature at all — nothing records the pages you visit.</small></div></div>
+    <div class="row"><div class="info"><label>No ads</label><small>Ad and tracker domains are dropped before they leave the machine.</small></div></div>
+    <div class="row"><div class="info"><label>No telemetry</label><small>No crash reporting, metrics or background pings.</small></div></div>
+    <div class="row"><div class="info"><label>No AI</label><small>Nothing summarises, suggests or calls a model.</small></div></div>
+  </section>
+
+  <section class="card">
+    <h2>Search</h2>
+    <div class="row"><div class="info"><small>DuckDuckGo and Marginalia are queried over a cookie-less session, merged by reciprocal rank fusion, stripped of redirect wrappers and tracking parameters. Wikipedia supplies the answer card.</small></div></div>
+  </section>
+
+  <section class="card">
+    <h2>Build</h2>
+    <dl class="about-grid" id="about"></dl>
+  </section>
+
+  <section class="card">
+    <h2>Keyboard</h2>
+    <dl class="about-grid">
+      <dt>Ctrl T / Ctrl W</dt><dd>New tab · close tab</dd>
+      <dt>Ctrl Shift T</dt><dd>Reopen the last closed tab</dd>
+      <dt>Ctrl L</dt><dd>Focus the address bar</dd>
+      <dt>Ctrl F · F3</dt><dd>Find in page · next match</dd>
+      <dt>Alt ← / Alt →</dt><dd>Back · forward</dd>
+      <dt>Ctrl Tab</dt><dd>Next tab</dd>
+      <dt>Ctrl 1…9</dt><dd>Jump to a tab</dd>
+      <dt>Ctrl + / − / 0</dt><dd>Zoom</dd>
+      <dt>Ctrl ,</dt><dd>Settings</dd>
+      <dt>Alt Enter</dt><dd>Open the address bar entry in a new tab</dd>
+    </dl>
+  </section>
+</div>
+
+<script src="theme.js"></script>
+<script src="about.js"></script>
+</body>
+</html>

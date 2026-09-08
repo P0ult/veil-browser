@@ -1,0 +1,467 @@
+/* The browser chrome: tab strip, toolbar, and the shelf rows below them. */
+
+html, body { overflow: hidden; background: transparent; }
+
+#chrome {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+#chrome[data-mode="side"] {
+  flex-direction: row;
+  height: 100vh;
+  border-bottom: 0;
+}
+#chrome[data-mode="side"] .main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  align-self: flex-start;
+}
+#chrome[data-mode="top"] .sidebar { display: none; }
+#chrome[data-mode="side"] .tabstrip { display: none; }
+
+/* ------------------------------------------------------------- tab strip */
+
+.tabstrip {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 38px;
+  padding: 0 0 0 8px;
+  -webkit-app-region: drag;
+}
+
+.brand {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: 0 6px 5px 0;
+  color: var(--accent);
+  flex: none;
+}
+.brand .icon { width: 18px; height: 18px; }
+
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  -webkit-app-region: no-drag;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  min-width: 46px;
+  max-width: 218px;
+  flex: 1 1 190px;
+  padding: 0 6px 0 9px;
+  border-radius: 9px 9px 0 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12.5px;
+  cursor: default;
+  position: relative;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.tab:hover { background: var(--surface); color: var(--text-2); }
+.tab.active {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 var(--border-strong), inset 1px 0 0 var(--border), inset -1px 0 0 var(--border);
+}
+.tab.active::after {
+  content: "";
+  position: absolute;
+  left: 9px; right: 9px; top: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.tab.dragging { opacity: 0.45; }
+
+.tab .fav {
+  width: 13px; height: 13px;
+  border-radius: 4px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #0b0e13;
+  letter-spacing: -0.02em;
+}
+.tab .fav.internal { background: var(--accent); }
+.tab .fav.spin {
+  background: none;
+  border: 1.6px solid var(--surface-3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.tab .title {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tab .close {
+  width: 18px; height: 18px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.tab .close .icon { width: 11px; height: 11px; stroke-width: 2.2; }
+.tab:hover .close, .tab.active .close { opacity: 0.7; }
+.tab .close:hover { opacity: 1; background: var(--surface-3); }
+#chrome[data-mode="top"] .tabs:has(.tab:nth-child(9)) .tab .close { display: none; }
+
+.tab-add {
+  width: 28px; height: 28px;
+  margin-bottom: 3px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  -webkit-app-region: no-drag;
+}
+.tab-add .icon { width: 15px; height: 15px; }
+
+.drag-space { flex: 1 1 60px; min-width: 24px; height: 100%; }
+
+.wincontrols {
+  display: flex;
+  align-self: stretch;
+  -webkit-app-region: no-drag;
+}
+.wincontrols button {
+  width: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 0;
+  color: var(--text-2);
+}
+.wincontrols .wc { width: 12px; height: 12px; stroke-width: 1.1; }
+.wincontrols button:hover { background: var(--surface-2); }
+.wincontrols .danger:hover { background: #d94040; color: #fff; }
+
+/* --------------------------------------------------------------- toolbar */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 40px;
+  padding: 0 8px 2px;
+}
+.toolbar > button {
+  width: 30px; height: 30px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+/* The tunnel pill carries a label beside its icon, so it lays out as a row and
+   sizes to its content rather than the square icon-button shape above. */
+.toolbar > button.tunnel {
+  width: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.omnibox {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  margin: 0 6px;
+  padding: 0 5px 0 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.omnibox:hover { background: var(--surface-2); }
+.omnibox.focused {
+  background: var(--surface-2);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.omnibox .scheme { flex: none; width: 14px; height: 14px; color: var(--text-3); }
+.omnibox .scheme.secure { color: var(--ok); }
+.omnibox .scheme.insecure { color: var(--warn); }
+
+#url {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: none;
+  font-size: 13px;
+  letter-spacing: 0.005em;
+  user-select: text;
+}
+#url::placeholder { color: var(--text-3); }
+
+.shield {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px 0 6px;
+  flex: none;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.shield .icon { width: 13px; height: 13px; }
+.shield.hit { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.shield.paused { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+
+.tunnel {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px 0 9px;
+  flex: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  color: var(--text-3);
+}
+.tunnel .icon { width: 14px; height: 14px; }
+.tunnel[data-state="on"] {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+.tunnel[data-state="bootstrapping"], .tunnel[data-state="starting"], .tunnel[data-state="downloading"] { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.tunnel[data-state="error"] { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.tunnel[data-state="blocked"] { color: var(--bad); background: color-mix(in srgb, var(--bad) 16%, transparent); border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
+.tunnel[data-state="off"] { opacity: 0.6; }
+
+/* ----------------------------------------------------------------- shelf */
+
+.shelf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12.5px;
+}
+.shelf[hidden] { display: none; }
+.shelf > button {
+  width: 26px; height: 26px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.shelf-label { color: var(--text-3); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em; }
+
+#find-input {
+  flex: 1;
+  max-width: 340px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  outline: 0;
+  font-size: 12.5px;
+  user-select: text;
+}
+#find-input:focus { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.find-count { color: var(--text-3); font-size: 11.5px; font-variant-numeric: tabular-nums; min-width: 56px; }
+
+.toast .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex: none;
+}
+.toast[data-kind="ok"] .dot { background: var(--ok); }
+.toast[data-kind="warn"] .dot { background: var(--warn); }
+.toast[data-kind="info"] .dot { background: var(--accent); }
+#toast-text { flex: 1; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+:root[data-density="compact"] .tabstrip { height: 32px; }
+:root[data-density="compact"] .tab { height: 27px; font-size: 12px; }
+:root[data-density="compact"] .toolbar { height: 36px; }
+:root[data-density="compact"] .shelf { height: 34px; }
+
+/* A question raised by the browser itself, e.g. offering to save a password. */
+.prompt #prompt-text { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prompt-actions { display: flex; gap: 7px; flex: none; }
+.prompt-actions button {
+  height: 26px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text-2);
+  width: auto;
+}
+.prompt-actions button.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+  font-weight: 600;
+}
+.prompt-actions button.primary:hover { background: var(--accent); filter: brightness(1.08); }
+
+
+/* ------------------------------------------------------------- vertical tabs
+
+   The same tab elements are re-parented between the horizontal strip and the
+   left rail, so switching layouts never rebuilds them and never disturbs a
+   click in progress.                                                        */
+
+:root { --sidebar-w: 220px; }
+
+.tabs-host {
+  display: flex;
+  align-items: flex-end;
+  flex: 1;
+  min-width: 0;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar {
+  width: var(--sidebar-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  -webkit-app-region: drag;
+}
+
+.side-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 8px 0 12px;
+  flex: none;
+}
+.side-head .brand { margin: 0; width: 20px; height: 20px; }
+.side-name {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  overflow: hidden;
+  white-space: nowrap;
+}
+#side-collapse {
+  width: 26px; height: 26px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  -webkit-app-region: no-drag;
+}
+
+.side-tabs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 6px;
+  -webkit-app-region: no-drag;
+}
+
+.side-add {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 32px;
+  margin: 4px 6px 8px;
+  padding: 0 10px;
+  flex: none;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  -webkit-app-region: no-drag;
+}
+.side-add .icon { width: 14px; height: 14px; flex: none; }
+
+/* The tab list itself: a row across the top, a column down the side. */
+#chrome[data-mode="side"] .tabs {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+}
+
+#chrome[data-mode="side"] .tab {
+  height: 32px;
+  min-width: 0;
+  max-width: none;
+  flex: none;
+  border-radius: 8px;
+  padding: 0 5px 0 9px;
+  box-shadow: none;
+}
+#chrome[data-mode="side"] .tab.active {
+  background: var(--surface-3);
+  box-shadow: none;
+}
+/* The active marker runs down the left edge rather than across the top. */
+#chrome[data-mode="side"] .tab.active::after {
+  left: 0; top: 7px; bottom: 7px; right: auto;
+  width: 2px; height: auto;
+}
+#chrome[data-mode="side"] .tab .close { opacity: 0; }
+#chrome[data-mode="side"] .tab:hover .close,
+#chrome[data-mode="side"] .tab.active .close { opacity: 0.7; }
+
+/* Collapsed: icons only, and the tab title and chrome text get out of the way. */
+#chrome[data-collapsed="1"] { --sidebar-w: 52px; }
+#chrome[data-collapsed="1"] .side-name,
+#chrome[data-collapsed="1"] .side-add span,
+#chrome[data-collapsed="1"] .tab .title,
+#chrome[data-collapsed="1"] .tab .close { display: none; }
+#chrome[data-collapsed="1"] .side-head { padding: 0 8px; justify-content: center; }
+#chrome[data-collapsed="1"] #side-collapse { display: none; }
+#chrome[data-collapsed="1"] .tab { justify-content: center; padding: 0; }
+#chrome[data-collapsed="1"] .side-add { justify-content: center; padding: 0; }
+
+/* In vertical mode the toolbar carries the window buttons, and its own gaps
+   become the draggable area, since the tab strip that used to drag is gone. */
+#chrome[data-mode="side"] .toolbar {
+  -webkit-app-region: drag;
+  padding-right: 0;
+}
+#chrome[data-mode="side"] .toolbar > *,
+#chrome[data-mode="side"] .wincontrols,
+#chrome[data-mode="side"] .wincontrols button { -webkit-app-region: no-drag; }
+#chrome[data-mode="side"] .wincontrols { align-self: stretch; margin-left: 4px; }
+#chrome[data-mode="side"] .topbar { border-bottom: 1px solid var(--border); }
+
+:root[data-density="compact"] .side-head { height: 34px; }
+:root[data-density="compact"] #chrome[data-mode="side"] .tab { height: 28px; }

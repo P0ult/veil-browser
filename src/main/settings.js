@@ -1,0 +1,272 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { app } = require('electron');
+
+// Where Tunnel VPN usually ends up, in order of likelihood. Nothing is
+// hardcoded to one machine: the browser looks for the first of these that
+// exists, and the settings page has a file picker for everything else.
+const VPN_CANDIDATES = [
+  ['USERPROFILE', String.raw`Downloads\TunnelVPN-win\Tunnel VPN\TunnelVPN.exe`],
+  ['USERPROFILE', String.raw`Downloads\Tunnel VPN\TunnelVPN.exe`],
+  ['LOCALAPPDATA', String.raw`TunnelVPN\TunnelVPN.exe`],
+  ['ProgramFiles', String.raw`Tunnel VPN\TunnelVPN.exe`],
+  ['ProgramFiles(x86)', String.raw`Tunnel VPN\TunnelVPN.exe`]
+];
+
+function findVpn() {
+  for (const [envVar, tail] of VPN_CANDIDATES) {
+    const base = process.env[envVar];
+    if (!base) continue;
+    const full = path.join(base, tail);
+    try { if (fs.statSync(full).isFile()) return full; } catch {}
+  }
+  return '';
+}
+
+const DEFAULTS = {
+  version: 2,
+  appearance: {
+    theme: 'dark',                 // dark | light
+    accent: '#7dd3a0',
+    bgType: 'gradient',            // solid | gradient | image
+    bgColor: '#0b0e13',
+    bgGradientA: '#0b0e13',
+    bgGradientB: '#131b26',
+    bgGradientAngle: 160,
+    bgImage: '',                   // absolute file path or https URL
+    bgFit: 'cover',                // cover | contain | tile | center
+    bgDim: 0.45,                   // 0..1 overlay darkness
+    bgBlur: 0,                     // px
+    font: 'system',                // system | serif | mono | rounded
+    radius: 12,
+    density: 'comfortable',        // compact | comfortable
+    tabLayout: 'top',              // top | side (a vertical rail of tabs)
+    sidebarWidth: 220,
+    sidebarCollapsed: false,
+    chromeOpacity: 0.72,
+    greeting: '',
+    showClock: true,
+    showStats: true,
+    showShortcuts: true
+  },
+  search: {
+    engine: 'veil',                // veil | duckduckgo | mojeek | startpage | brave | wikipedia | custom
+    customUrl: 'https://searxng.site/search?q=%s',
+    backends: { duckduckgo: true, marginalia: true, wikipedia: true, mojeek: false },
+    resultCount: 20,
+    stripTrackingParams: true,
+    openResultsInNewTab: false,
+    bangs: {
+      w: 'https://en.wikipedia.org/wiki/Special:Search?search=%s',
+      yt: 'https://www.youtube.com/results?search_query=%s',
+      gh: 'https://github.com/search?q=%s',
+      ddg: 'https://duckduckgo.com/?q=%s',
+      so: 'https://stackoverflow.com/search?q=%s',
+      npm: 'https://www.npmjs.com/search?q=%s',
+      mdn: 'https://developer.mozilla.org/en-US/search?q=%s',
+      r: 'https://www.reddit.com/search/?q=%s',
+      map: 'https://www.openstreetmap.org/search?query=%s',
+      a: 'https://archive.org/search?query=%s'
+    }
+  },
+  privacy: {
+    // 'keep' stores cookies and cache on disk, so accounts survive a restart
+    // and pages load from cache. 'none' is a RAM-only profile that forgets
+    // everything, including every login, the moment Veil closes.
+    retention: 'keep',
+    blockAds: true,
+    cosmeticFiltering: true,
+    blockThirdPartyCookies: true,
+    trimReferrer: true,
+    httpsOnly: true,
+    sendDnt: true,
+    blockWebRTCLeak: true,
+    antiFingerprint: true,         // per-site noise on canvas, WebGL and audio
+    normaliseNavigator: true,      // report common CPU/memory/language values
+    denyPermissions: true,
+    spoofUserAgent: false,
+    userAgent: ''
+  },
+  adblock: {
+    customBlock: [],
+    allowlist: [],
+    lists: [
+      { name: 'StevenBlack unified hosts', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts', enabled: false },
+      { name: 'AdGuard DNS filter', url: 'https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt', enabled: false },
+      { name: 'Peter Lowe ad servers', url: 'https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext', enabled: false }
+    ],
+    lastUpdated: 0
+  },
+  // The in-browser tunnel. Everything the browsing session sends goes through
+  // it, which needs no driver and no elevation - unlike a system-wide VPN.
+  tunnel: {
+    enabled: true,
+    // tor      - Veil fetches and runs Tor itself
+    // wstunnel - browser-only tunnel through your own wstunnel server
+    // system   - the Tunnel VPN app carries the whole machine
+    // socks/http - any other proxy endpoint
+    provider: 'tor',               // tor | wstunnel | system | socks | http | off
+    host: '',
+    port: 0,
+    tls: false,                    // for the http provider: speak https to it
+    torPath: '',                   // point at an existing tor.exe instead of downloading
+    killSwitch: true,              // block traffic if an established tunnel drops
+    routeSearch: true,             // send search queries through it too
+
+    // wstunnel provider: where the endpoint is published, and what to ask the
+    // far side for. Leave remoteSocks blank to request a dynamic SOCKS5 tunnel,
+    // which only works if the server does not restrict destinations.
+    wstunnelPath: '',              // blank = look in %LOCALAPPDATA%\\TunnelVPN\\bin
+    wsGistId: 'dd9367f161b28ac2c1beeba90a3e15c3',
+    wsEndpoint: '',                // set this to skip the gist lookup
+    wsRemoteSocks: '127.0.0.1:1080' // a SOCKS server on the far side; blank asks for a dynamic tunnel
+  },
+  dns: {
+    mode: 'automatic',             // off | automatic | secure
+    servers: 'https://dns.quad9.net/dns-query'
+  },
+  updates: {
+    checkOnStart: true
+  },
+  passwords: {
+    autofill: true,
+    autoSave: true,                // save new logins with no prompt
+    offerToSave: true,             // used only when autoSave is off
+    requireHttps: true,            // never fill into a plain-http page
+    autoLockMinutes: 15
+  },
+  // The separate, system-wide VPN app. Optional, and needs its own UAC prompt.
+  vpn: {
+    exePath: '',                  // blank = look in the usual places on first run
+    autoLaunch: false,
+    pollSeconds: 6
+  },
+  browser: {
+    homepage: 'veil://home',
+    newTabPage: 'veil://home',
+    defaultZoom: 1,
+    shortcuts: [
+      { title: 'Wikipedia', url: 'https://en.wikipedia.org' },
+      { title: 'GitHub', url: 'https://github.com' },
+      { title: 'YouTube', url: 'https://youtube.com' },
+      { title: 'Reddit', url: 'https://reddit.com' },
+      { title: 'Hacker News', url: 'https://news.ycombinator.com' },
+      { title: 'OpenStreetMap', url: 'https://www.openstreetmap.org' }
+    ]
+  }
+};
+
+function isObj(v) { return v && typeof v === 'object' && !Array.isArray(v); }
+
+function merge(base, over) {
+  const out = Array.isArray(base) ? base.slice() : { ...base };
+  if (!isObj(over)) return out;
+  for (const [k, v] of Object.entries(over)) {
+    if (isObj(v) && isObj(base[k])) out[k] = merge(base[k], v);
+    else if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+function clone(v) { return JSON.parse(JSON.stringify(v)); }
+
+/**
+ * Version 1 kept nothing on disk at all, which signed you out of every account
+ * on every launch. Version 2 replaces that pair of switches with one retention
+ * setting and defaults it to keeping logins.
+ */
+function migrate(data) {
+  let changed = false;
+  if (!data.version || data.version < 2) {
+    const p = data.privacy || (data.privacy = {});
+    if (p.retention === undefined) p.retention = 'keep';
+    delete p.ephemeral;
+    delete p.clearOnExit;
+    data.version = 2;
+    changed = true;
+  }
+  return { data, changed };
+}
+
+class Settings {
+  constructor() {
+    this.file = path.join(app.getPath('userData'), 'settings.json');
+    this.data = clone(DEFAULTS);
+    this._listeners = new Set();
+    this._saveTimer = null;
+    this.load();
+  }
+
+  load() {
+    let migrated = false;
+    try {
+      const raw = fs.readFileSync(this.file, 'utf8');
+      const result = migrate(merge(clone(DEFAULTS), JSON.parse(raw)));
+      this.data = result.data;
+      migrated = result.changed;
+    } catch {
+      this.data = clone(DEFAULTS);
+    }
+    if (!this.data.vpn.exePath) this.data.vpn.exePath = findVpn();
+    // Write an upgraded config out straight away, so the file on disk always
+    // describes what the running browser is actually doing.
+    if (migrated) this.saveNow();
+    return this.data;
+  }
+
+  all() { return this.data; }
+
+  get(pathStr, fallback) {
+    let cur = this.data;
+    for (const part of String(pathStr).split('.')) {
+      if (cur == null) return fallback;
+      cur = cur[part];
+    }
+    return cur === undefined ? fallback : cur;
+  }
+
+  /** Deep-merge a patch and notify listeners. */
+  update(patch) {
+    this.data = merge(this.data, patch);
+    this.save();
+    this.emit();
+    return this.data;
+  }
+
+  /** Replace whole config (used by import). */
+  replace(obj) {
+    this.data = merge(clone(DEFAULTS), obj || {});
+    this.save();
+    this.emit();
+    return this.data;
+  }
+
+  reset() { return this.replace({}); }
+
+  save() {
+    clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => {
+      try {
+        fs.mkdirSync(path.dirname(this.file), { recursive: true });
+        fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2), 'utf8');
+      } catch (e) {
+        console.error('[settings] save failed:', e.message);
+      }
+    }, 120);
+  }
+
+  saveNow() {
+    clearTimeout(this._saveTimer);
+    try {
+      fs.mkdirSync(path.dirname(this.file), { recursive: true });
+      fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2), 'utf8');
+    } catch {}
+  }
+
+  onChange(fn) { this._listeners.add(fn); return () => this._listeners.delete(fn); }
+  emit() { for (const fn of this._listeners) { try { fn(this.data); } catch {} } }
+}
+
+module.exports = { Settings, DEFAULTS, findVpn };

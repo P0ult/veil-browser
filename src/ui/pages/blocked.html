@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data:">
+<title>Blocked</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.1 8.4-7.5 9.5-4.4-1.1-7.5-4.9-7.5-9.5V6z"/><path d="M9.3 12.2 11.4 14l3.4-4"/></symbol>
+</svg>
+
+<div class="message">
+  <div class="badge"><svg><use href="#i-shield"/></svg></div>
+  <h1>Blocked by Veil</h1>
+  <p>This address is on your blocklist, so the request never left your machine.</p>
+  <div class="mono" id="url"></div>
+  <div class="actions">
+    <button class="btn" id="back">Go back</button>
+    <button class="btn" id="allow">Allow this domain</button>
+  </div>
+</div>
+
+<script src="theme.js"></script>
+<script src="blocked.js"></script>
+</body>
+</html>

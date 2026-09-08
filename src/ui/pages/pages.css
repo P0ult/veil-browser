@@ -1,0 +1,456 @@
+/* Shared styling for Veil's internal pages. */
+
+html, body { min-height: 100%; }
+body { display: flex; flex-direction: column; }
+
+.wrap { width: min(100% - 48px, 720px); margin: 0 auto; }
+.wide { width: min(100% - 48px, 1040px); }
+
+/* ------------------------------------------------------------------- home */
+
+.home {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0 72px;
+  gap: 26px;
+}
+
+.mark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+}
+.mark svg { width: 34px; height: 34px; color: var(--accent); stroke-width: 1.7; }
+.mark .name {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.clock {
+  font-size: 54px;
+  font-weight: 250;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text);
+}
+.greeting { color: var(--text-2); font-size: 15px; margin-top: -12px; }
+
+.searchbox {
+  width: min(100%, 620px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 8px 0 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.searchbox:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: var(--shadow), 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.searchbox svg { width: 18px; height: 18px; color: var(--text-3); flex: none; }
+.searchbox input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: none;
+  font-size: 15.5px;
+}
+.searchbox input::placeholder { color: var(--text-3); }
+.searchbox .go {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  flex: none;
+}
+.searchbox .go:hover { background: var(--accent); filter: brightness(1.08); }
+
+.hint { color: var(--text-3); font-size: 12.5px; margin-top: -14px; }
+.hint code {
+  font-family: ui-monospace, Consolas, monospace;
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 11.5px;
+}
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  width: min(100%, 620px);
+}
+.shortcut {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 16px 8px 13px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 12.5px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.shortcut:hover { background: var(--surface-2); border-color: var(--border-strong); transform: translateY(-2px); color: var(--text); }
+.shortcut .glyph {
+  width: 34px; height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 650;
+  color: #0b0e13;
+}
+.shortcut .label { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shortcut .kill {
+  position: absolute;
+  top: 5px; right: 5px;
+  width: 20px; height: 20px;
+  border-radius: 6px;
+  display: none;
+  place-items: center;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+}
+.editing .shortcut .kill { display: grid; }
+.shortcut.add { border-style: dashed; color: var(--text-3); }
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.stats b { color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.stats .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.stats .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
+.stats .pill[data-state="connected"] .dot { background: var(--ok); }
+.stats .pill[data-state="connecting"] .dot { background: var(--warn); }
+.stats .pill[data-state="running"] .dot { background: var(--warn); }
+.stats a { color: var(--text-3); }
+.stats a:hover { color: var(--accent); }
+
+/* ---------------------------------------------------------------- results */
+
+.results-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 14px 0 12px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+.results-head .row { display: flex; align-items: center; gap: 14px; }
+.results-head .mark svg { width: 22px; height: 22px; }
+.results-head .mark .name { font-size: 17px; }
+.results-head .searchbox { height: 42px; box-shadow: none; flex: 1; }
+.results-head .searchbox .go { height: 31px; padding: 0 14px; font-size: 12.5px; }
+
+.meta { color: var(--text-3); font-size: 12px; padding: 12px 0 4px; display: flex; gap: 14px; flex-wrap: wrap; }
+
+.answer {
+  display: flex;
+  gap: 16px;
+  padding: 18px;
+  margin: 14px 0 6px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.answer img { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; flex: none; }
+.answer h2 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+.answer p { margin: 0; color: var(--text-2); font-size: 13.5px; line-height: 1.55; }
+.answer .src { margin-top: 9px; font-size: 11.5px; color: var(--text-3); }
+
+.result { padding: 16px 0; border-bottom: 1px solid var(--border); }
+.result:last-child { border-bottom: 0; }
+.result .host { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); margin-bottom: 5px; }
+.result .host .glyph {
+  width: 17px; height: 17px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #0b0e13;
+  flex: none;
+}
+.result h3 { margin: 0 0 5px; font-size: 16.5px; font-weight: 500; line-height: 1.35; }
+.result h3 a { color: var(--accent); }
+.result p { margin: 0; color: var(--text-2); font-size: 13.5px; line-height: 1.58; }
+.result .tags { margin-top: 7px; display: flex; gap: 6px; }
+.result .tag {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.empty { padding: 60px 0; text-align: center; color: var(--text-2); }
+.empty h2 { font-size: 18px; font-weight: 550; margin: 0 0 8px; color: var(--text); }
+.empty p { margin: 0 0 18px; font-size: 13.5px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+.btn:hover { background: var(--surface-3); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+
+.skeleton { padding: 22px 0; }
+.skeleton div {
+  height: 13px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 37%, var(--surface) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.3s infinite linear;
+  margin-bottom: 11px;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* --------------------------------------------------------------- settings */
+
+.settings { flex: 1; display: flex; gap: 34px; padding: 30px 0 60px; }
+.settings nav {
+  position: sticky;
+  top: 30px;
+  align-self: flex-start;
+  width: 186px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings nav a {
+  padding: 9px 13px;
+  border-radius: 9px;
+  color: var(--text-3);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.settings nav a:hover { background: var(--surface); color: var(--text-2); text-decoration: none; }
+.settings nav a.on { background: var(--surface-2); color: var(--text); font-weight: 500; }
+
+.settings main { flex: 1; min-width: 0; }
+.settings h1 { font-size: 25px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 4px; }
+.settings .sub { color: var(--text-3); font-size: 13px; margin: 0 0 28px; }
+
+section.card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 6px 20px;
+  margin-bottom: 18px;
+}
+section.card > h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-3);
+  font-weight: 600;
+  margin: 18px 0 4px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.row:last-child { border-bottom: 0; }
+.row .info { flex: 1; min-width: 0; }
+.row .info label { display: block; font-size: 13.5px; margin-bottom: 3px; }
+.row .info small { color: var(--text-3); font-size: 12px; line-height: 1.5; display: block; }
+.row .ctl { flex: none; display: flex; align-items: center; gap: 8px; }
+
+.switch {
+  position: relative;
+  width: 40px; height: 23px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  transition: background var(--dur) var(--ease);
+  flex: none;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 17px; height: 17px;
+  border-radius: 50%;
+  background: var(--text-2);
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.switch[aria-checked="true"] { background: var(--accent); border-color: transparent; }
+.switch[aria-checked="true"]::after { transform: translateX(17px); background: var(--accent-ink); }
+
+input[type="text"], input[type="number"], input[type="url"], select, textarea {
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  outline: 0;
+  font-size: 13px;
+  min-width: 0;
+}
+textarea { height: auto; padding: 10px 11px; line-height: 1.5; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 12px; width: 100%; }
+input:focus, select:focus, textarea:focus { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+input[type="color"] { width: 40px; height: 32px; padding: 2px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; }
+input[type="range"] { width: 150px; accent-color: var(--accent); }
+select { cursor: pointer; padding-right: 6px; }
+.grow { flex: 1; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 4px 0 14px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px 5px 11px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+.chip button { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 5px; font-size: 12px; line-height: 1; }
+
+.note {
+  padding: 13px 15px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin: 14px 0;
+}
+.note.warn {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 30%, transparent);
+}
+
+/* ------------------------------------------------------- message pages */
+
+.message {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 16px;
+  padding: 60px 24px;
+}
+.message .badge {
+  width: 62px; height: 62px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--accent);
+}
+.message .badge svg { width: 28px; height: 28px; stroke-width: 1.7; }
+.message h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.message p { margin: 0; color: var(--text-2); font-size: 14px; max-width: 46ch; line-height: 1.6; }
+.message .mono {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-3);
+  word-break: break-all;
+  max-width: 60ch;
+}
+.message .actions { display: flex; gap: 10px; margin-top: 6px; }
+
+.about-grid { display: grid; grid-template-columns: max-content 1fr; gap: 8px 22px; font-size: 13px; }
+.about-grid dt { color: var(--text-3); }
+.about-grid dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- dialog */
+
+dialog {
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: var(--shadow);
+  width: min(100% - 40px, 380px);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(3px); }
+dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 600; }
+dialog label { display: block; font-size: 12.5px; color: var(--text-2); margin-bottom: 12px; }
+dialog label input { display: block; width: 100%; margin-top: 6px; }
+.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+/* Remove buttons on the new-tab shortcuts appear on hover. */
+.shortcut:hover .kill { display: grid; }
+
+/* ---------------------------------------------------------------- pager */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 30px 0 10px;
+}
+.pager-page { color: var(--text-3); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* A second press is required before leaving encryption behind. */
+.btn.danger {
+  background: color-mix(in srgb, var(--bad) 22%, transparent);
+  border-color: color-mix(in srgb, var(--bad) 55%, transparent);
+  color: var(--bad);
+}
+.fineprint { color: var(--text-3); font-size: 12px; margin-top: 4px; }

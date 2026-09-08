@@ -1,0 +1,125 @@
+/* Shared design tokens for the chrome and every internal page. */
+
+:root {
+  --accent: #7dd3a0;
+  --accent-ink: #06120c;
+  --radius: 12px;
+
+  --bg: #0b0e13;
+  --surface: rgba(255, 255, 255, 0.055);
+  --surface-2: rgba(255, 255, 255, 0.09);
+  --surface-3: rgba(255, 255, 255, 0.14);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --text: #e9edf3;
+  --text-2: #b3bfcd;
+  --text-3: #7d8a99;
+
+  --ok: #7dd3a0;
+  --warn: #f0b45e;
+  --bad: #f08a8a;
+
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.38);
+  --font: system-ui, "Segoe UI Variable Display", "Segoe UI", Inter, Roboto, sans-serif;
+
+  --dur: 140ms;
+  --ease: cubic-bezier(0.32, 0.72, 0.35, 1);
+}
+
+:root[data-theme="light"] {
+  --bg: #f2f4f7;
+  --surface: rgba(15, 22, 33, 0.045);
+  --surface-2: rgba(15, 22, 33, 0.075);
+  --surface-3: rgba(15, 22, 33, 0.12);
+  --border: rgba(15, 22, 33, 0.11);
+  --border-strong: rgba(15, 22, 33, 0.2);
+
+  --text: #10161f;
+  --text-2: #44515f;
+  --text-3: #6b7887;
+
+  --accent-ink: #06120c;
+  --shadow: 0 8px 28px rgba(15, 22, 33, 0.14);
+}
+
+:root[data-font="serif"]  { --font: Georgia, "Iowan Old Style", "Times New Roman", serif; }
+:root[data-font="mono"]   { --font: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", monospace; }
+:root[data-font="rounded"]{ --font: "Segoe UI Variable Display", ui-rounded, "Nunito", "Quicksand", system-ui, sans-serif; }
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: var(--font);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The base colour belongs to the root and nothing else. Giving body a
+   background as well paints its box over the fixed gradient/image layers
+   below, which shows up as a band of flat colour across the top of a scrolled
+   page. */
+html { background: var(--bg); }
+body { background: transparent; }
+
+/* Layered page background: image/gradient, then a dimming veil. */
+#veil-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background: var(--bg);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: filter var(--dur) var(--ease);
+}
+#veil-bg-dim {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease);
+}
+
+::selection { background: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--text); }
+
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); background-clip: content-box; }
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--text-2);
+  border-radius: calc(var(--radius) - 4px);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+button:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+button:active:not(:disabled) { background: var(--surface-3); }
+button:disabled { opacity: 0.32; cursor: default; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.icon { width: 17px; height: 17px; display: block; stroke-width: 1.9; }

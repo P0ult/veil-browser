@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data: https:; font-src veil:">
+<title>Settings</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+
+<div class="settings wrap wide">
+
+  <nav id="nav">
+    <a data-go="appearance" class="on">Appearance</a>
+    <a data-go="search">Search</a>
+    <a data-go="tunnel">Tunnel</a>
+    <a data-go="privacy">Privacy</a>
+    <a data-go="adblock">Ad block</a>
+    <a data-go="passwords">Passwords</a>
+    <a data-go="browser">Browser</a>
+    <a data-go="data">Data</a>
+  </nav>
+
+  <main>
+    <h1>Settings</h1>
+    <p class="sub" id="sub">Stored in one JSON file on this machine.</p>
+
+    <!-- ------------------------------------------------------ appearance -->
+    <section class="card" id="s-appearance">
+      <h2>Appearance</h2>
+
+      <div class="row">
+        <div class="info"><label>Theme</label></div>
+        <div class="ctl">
+          <select data-bind="appearance.theme">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Accent</label></div>
+        <div class="ctl">
+          <input type="color" data-bind="appearance.accent">
+          <input type="text" data-bind="appearance.accent" style="width:104px" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Background</label></div>
+        <div class="ctl">
+          <select data-bind="appearance.bgType">
+            <option value="solid">Solid</option>
+            <option value="gradient">Gradient</option>
+            <option value="image">Image</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" data-when="appearance.bgType=solid">
+        <div class="info"><label>Colour</label></div>
+        <div class="ctl">
+          <input type="color" data-bind="appearance.bgColor">
+          <input type="text" data-bind="appearance.bgColor" style="width:104px" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="row" data-when="appearance.bgType=gradient">
+        <div class="info"><label>Colours and angle</label></div>
+        <div class="ctl">
+          <input type="color" data-bind="appearance.bgGradientA">
+          <input type="color" data-bind="appearance.bgGradientB">
+          <input type="number" data-bind="appearance.bgGradientAngle" min="0" max="360" step="5" style="width:72px">
+        </div>
+      </div>
+
+      <div class="row" data-when="appearance.bgType=image">
+        <div class="info"><label>Image</label><small id="bg-path">None chosen.</small></div>
+        <div class="ctl">
+          <button class="btn" id="pick-image">Choose…</button>
+          <button class="btn" id="clear-image">Clear</button>
+        </div>
+      </div>
+
+      <div class="row" data-when="appearance.bgType=image">
+        <div class="info"><label>Image URL</label><small>Fetched on every new tab, so a local file is more private.</small></div>
+        <div class="ctl"><input type="text" data-bind="appearance.bgImage" style="width:280px" spellcheck="false" placeholder="https://…"></div>
+      </div>
+
+      <div class="row" data-when="appearance.bgType=image">
+        <div class="info"><label>Fit</label></div>
+        <div class="ctl">
+          <select data-bind="appearance.bgFit">
+            <option value="cover">Fill</option>
+            <option value="contain">Fit</option>
+            <option value="center">Centre</option>
+            <option value="tile">Tile</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" data-when="appearance.bgType=image">
+        <div class="info"><label>Dim</label></div>
+        <div class="ctl"><input type="range" data-bind="appearance.bgDim" min="0" max="0.9" step="0.05"><span class="val"></span></div>
+      </div>
+
+      <div class="row" data-when="appearance.bgType=image">
+        <div class="info"><label>Blur</label></div>
+        <div class="ctl"><input type="range" data-bind="appearance.bgBlur" min="0" max="24" step="1"><span class="val"></span></div>
+      </div>
+
+      <h2>Layout</h2>
+
+      <div class="row">
+        <div class="info"><label>Font</label></div>
+        <div class="ctl">
+          <select data-bind="appearance.font">
+            <option value="system">System</option>
+            <option value="rounded">Rounded</option>
+            <option value="serif">Serif</option>
+            <option value="mono">Monospace</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Corner radius</label></div>
+        <div class="ctl"><input type="range" data-bind="appearance.radius" min="0" max="24" step="1"><span class="val"></span></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Density</label></div>
+        <div class="ctl">
+          <select data-bind="appearance.density">
+            <option value="comfortable">Comfortable</option>
+            <option value="compact">Compact</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Tabs</label><small>A strip across the top, or a vertical rail down the left.</small></div>
+        <div class="ctl">
+          <select data-bind="appearance.tabLayout">
+            <option value="top">Across the top</option>
+            <option value="side">Down the left</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" data-when="appearance.tabLayout=side">
+        <div class="info"><label>Rail width</label></div>
+        <div class="ctl"><input type="range" data-bind="appearance.sidebarWidth" min="150" max="420" step="10"><span class="val"></span></div>
+      </div>
+
+      <div class="row" data-when="appearance.tabLayout=side">
+        <div class="info"><label>Collapse to icons</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="appearance.sidebarCollapsed"></button></div>
+      </div>
+
+      <h2>New tab</h2>
+
+      <div class="row">
+        <div class="info"><label>Greeting</label></div>
+        <div class="ctl"><input type="text" data-bind="appearance.greeting" style="width:240px" placeholder="Optional"></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Clock</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="appearance.showClock"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Shortcuts</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="appearance.showShortcuts"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Status line</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="appearance.showStats"></button></div>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- search -->
+    <section class="card" id="s-search">
+      <h2>Search</h2>
+
+      <div class="row">
+        <div class="info"><label>Engine</label><small>Veil queries several engines itself and merges the results.</small></div>
+        <div class="ctl">
+          <select data-bind="search.engine">
+            <option value="veil">Veil</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+            <option value="mojeek">Mojeek</option>
+            <option value="startpage">Startpage</option>
+            <option value="brave">Brave</option>
+            <option value="marginalia">Marginalia</option>
+            <option value="wikipedia">Wikipedia</option>
+            <option value="custom">Custom…</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" data-when="search.engine=custom">
+        <div class="info"><label>Custom URL</label><small><code>%s</code> is the query.</small></div>
+        <div class="ctl"><input type="text" data-bind="search.customUrl" style="width:320px" spellcheck="false"></div>
+      </div>
+
+      <div class="row" data-when="search.engine=veil">
+        <div class="info"><label>Sources</label><small>Mojeek is off by default: it usually demands a bot check.</small></div>
+        <div class="ctl" style="flex-wrap:wrap;justify-content:flex-end">
+          <label class="chip">DuckDuckGo <button class="switch" role="switch" data-bind="search.backends.duckduckgo"></button></label>
+          <label class="chip">Marginalia <button class="switch" role="switch" data-bind="search.backends.marginalia"></button></label>
+          <label class="chip">Wikipedia <button class="switch" role="switch" data-bind="search.backends.wikipedia"></button></label>
+          <label class="chip">Mojeek <button class="switch" role="switch" data-bind="search.backends.mojeek"></button></label>
+        </div>
+      </div>
+
+      <div class="row" data-when="search.engine=veil">
+        <div class="info"><label>Results per page</label></div>
+        <div class="ctl"><input type="range" data-bind="search.resultCount" min="5" max="50" step="5"><span class="val"></span></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Strip tracking parameters</label><small>Removes utm_*, fbclid, gclid and the rest from links.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="search.stripTrackingParams"></button></div>
+      </div>
+
+      <h2>Bangs</h2>
+      <div class="note">Type <code>!yt cats</code> to jump straight to a site. One per line, <code>key = url</code> with <code>%s</code>.</div>
+      <textarea id="bangs" rows="8" spellcheck="false"></textarea>
+      <div class="row"><div class="info"><small id="bangs-status"></small></div></div>
+    </section>
+
+    <!-- ---------------------------------------------------------- tunnel -->
+    <section class="card" id="s-tunnel">
+      <h2>Tunnel</h2>
+      <div class="note">Everything the browser sends goes through the tunnel. It needs no driver and no admin rights, so it covers browser traffic only — not other apps.</div>
+
+      <div class="row">
+        <div class="info"><label>Status</label><small id="tunnel-detail">…</small></div>
+        <div class="ctl">
+          <button class="btn" id="tunnel-toggle">Toggle</button>
+          <button class="btn" id="tunnel-reconnect">Reconnect</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>On at startup</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="tunnel.enabled"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Provider</label><small>Tor needs no account but is slow and blocked on some networks. A VPN proxy is faster and usually gets through.</small></div>
+        <div class="ctl">
+          <select data-bind="tunnel.provider">
+            <option value="system">My VPN — whole machine</option>
+            <option value="wstunnel">My VPN — browser only</option>
+            <option value="tor">Tor</option>
+            <option value="socks">Another proxy — SOCKS5</option>
+            <option value="http">Another proxy — HTTP/HTTPS</option>
+            <option value="off">None</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=tor">
+        <div class="info"><label>Existing tor.exe</label><small>Leave blank to let Veil download and verify its own copy.</small></div>
+        <div class="ctl"><input type="text" data-bind="tunnel.torPath" style="width:300px" spellcheck="false" placeholder="Optional path"></div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=system">
+        <div class="info"><label>How this works</label><small>Tunnel VPN carries every app on the machine, so Veil does not proxy on top of it — it just tracks the connection and cuts browser traffic if the VPN drops. One UAC prompt when you press Connect.</small></div>
+        <div class="ctl"><button class="btn" id="vpn-open-2">Open Tunnel VPN</button></div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=wstunnel">
+        <div class="info"><label>How this works</label><small>Routes only the browser through your own VPN server over wstunnel — no OpenVPN, no virtual adapter, no UAC. Your server must be willing to relay somewhere other than the OpenVPN port.</small></div>
+        <div class="ctl"></div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=wstunnel">
+        <div class="info"><label>Server-side SOCKS</label><small>Host and port of a SOCKS server on the far side, usually <code>127.0.0.1:1080</code>. If this box is <em>empty</em>, Veil asks for a dynamic tunnel instead, which most servers refuse.</small></div>
+        <div class="ctl"><input type="text" data-bind="tunnel.wsRemoteSocks" style="width:200px" spellcheck="false" placeholder="empty = dynamic tunnel"></div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=wstunnel">
+        <div class="info"><label>Endpoint</label><small>Leave blank to read the current address from the gist below.</small></div>
+        <div class="ctl"><input type="text" data-bind="tunnel.wsEndpoint" style="width:300px" spellcheck="false" placeholder="something.trycloudflare.com"></div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=wstunnel">
+        <div class="info"><label>Gist id</label></div>
+        <div class="ctl"><input type="text" data-bind="tunnel.wsGistId" style="width:300px" spellcheck="false"></div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=wstunnel">
+        <div class="info"><label>wstunnel.exe</label><small>Blank uses the copy Tunnel VPN installs.</small></div>
+        <div class="ctl"><input type="text" data-bind="tunnel.wstunnelPath" style="width:300px" spellcheck="false" placeholder="Optional path"></div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=socks,http,wstunnel">
+        <div class="info"><label>Server</label><small id="proxy-hint">Your VPN's proxy address.</small></div>
+        <div class="ctl">
+          <input type="text" data-bind="tunnel.host" style="width:220px" spellcheck="false" placeholder="proxy.example.com">
+          <input type="number" data-bind="tunnel.port" style="width:90px" min="1" max="65535" placeholder="1080">
+        </div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=http">
+        <div class="info"><label>Use HTTPS to the proxy</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="tunnel.tls"></button></div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=socks,http,wstunnel">
+        <div class="info"><label>Sign in</label><small id="cred-state">Stored with your Windows account, never in the settings file. Most VPNs need service credentials, not your account login.</small></div>
+        <div class="ctl">
+          <input type="text" id="proxy-user" placeholder="Username" style="width:150px" spellcheck="false" autocomplete="off">
+          <input type="password" id="proxy-pass" placeholder="Password" style="width:150px" autocomplete="off">
+          <button class="btn" id="proxy-save">Save</button>
+          <button class="btn" id="proxy-clear">Clear</button>
+        </div>
+      </div>
+
+      <div class="row" data-when="tunnel.provider=socks,http,wstunnel">
+        <div class="info"><label>Where you appear</label><small id="exit-info">Not checked yet.</small></div>
+        <div class="ctl"><button class="btn" id="exit-check">Check</button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Kill switch</label><small>Block all traffic if a running tunnel drops.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="tunnel.killSwitch"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Route search through it</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="tunnel.routeSearch"></button></div>
+      </div>
+
+      <h2>DNS</h2>
+
+      <div class="row">
+        <div class="info"><label>Encrypted DNS</label><small>Strict refuses to fall back to plain DNS, so browsing fails if the resolver is unreachable.</small></div>
+        <div class="ctl">
+          <select data-bind="dns.mode">
+            <option value="off">Off</option>
+            <option value="automatic">Automatic</option>
+            <option value="secure">Strict</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" data-when="dns.mode=secure">
+        <div class="info"><label>Resolver</label></div>
+        <div class="ctl"><input type="text" data-bind="dns.servers" style="width:300px" spellcheck="false"></div>
+      </div>
+
+      <h2>System VPN</h2>
+      <div class="row">
+        <div class="info"><label>Tunnel VPN</label><small id="vpn-detail">…</small></div>
+        <div class="ctl">
+          <button class="btn" id="vpn-open">Open</button>
+          <button class="btn" id="vpn-logs">Logs</button>
+          <button class="btn" id="vpn-pick">Path…</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="info"><label>Open it when Veil starts</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="vpn.autoLaunch"></button></div>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------- privacy -->
+    <section class="card" id="s-privacy">
+      <h2>Privacy</h2>
+
+      <div class="row">
+        <div class="info"><label>Stay signed in</label><small>Keeps cookies and cache on disk, so accounts survive a restart and pages load faster. Veil has no browsing history either way. Needs a restart.</small></div>
+        <div class="ctl">
+          <select data-bind="privacy.retention">
+            <option value="keep">Stay signed in</option>
+            <option value="none">Forget everything on exit</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Block ads and trackers</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.blockAds"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Hide blocked ad slots</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.cosmeticFiltering"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Block third-party cookies</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.blockThirdPartyCookies"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Trim referrers</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.trimReferrer"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Upgrade to HTTPS</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.httpsOnly"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Send DNT and GPC</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.sendDnt"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Stop WebRTC leaking your IP</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.blockWebRTCLeak"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Resist fingerprinting</label><small>Adds per-site noise to canvas, WebGL and audio readings, so sites cannot join them into one identity. This scrambles you rather than making you look like everyone else — only Tor Browser and Mullvad Browser do the latter.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.antiFingerprint"></button></div>
+      </div>
+
+      <div class="row" data-when="privacy.antiFingerprint=true">
+        <div class="info"><label>Report common hardware</label><small>Says 8 cores and 8 GB regardless of the real machine. Turn off if a site misbehaves.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.normaliseNavigator"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Ask before granting permissions</label><small>Notifications and device APIs are always denied.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.denyPermissions"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Custom user agent</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.spoofUserAgent"></button></div>
+      </div>
+
+      <div class="row" data-when="privacy.spoofUserAgent=true">
+        <div class="info"><label>String</label></div>
+        <div class="ctl"><input type="text" data-bind="privacy.userAgent" style="width:320px" spellcheck="false"></div>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- adblock -->
+    <section class="card" id="s-adblock">
+      <h2>Ad block</h2>
+      <div class="row">
+        <div class="info"><label>Rules</label><small id="ab-stats">…</small></div>
+        <div class="ctl"><button class="btn primary" id="ab-update">Update</button></div>
+      </div>
+
+      <h2>Subscriptions</h2>
+      <div id="ab-lists"></div>
+
+      <h2>Your rules</h2>
+      <div class="note">One domain per line. Subdomains are covered automatically.</div>
+      <textarea id="ab-custom" rows="6" spellcheck="false" placeholder="tracker.example.com"></textarea>
+
+      <h2>Paused sites</h2>
+      <div class="chips" id="ab-allow"></div>
+      <div class="row">
+        <div class="info"><input type="text" id="ab-allow-input" placeholder="example.com" style="width:240px" spellcheck="false"></div>
+        <div class="ctl"><button class="btn" id="ab-allow-add">Add</button></div>
+      </div>
+    </section>
+
+    <!-- -------------------------------------------------------- passwords -->
+    <section class="card" id="s-passwords">
+      <h2>Passwords</h2>
+      <div class="row">
+        <div class="info"><label>Vault</label><small id="vault-detail">…</small></div>
+        <div class="ctl"><button class="btn primary" id="open-vault">Open</button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Fill saved logins</label><small>One match fills itself; several offer a picker.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="passwords.autofill"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Save new logins automatically</label><small>No prompt. Creates the vault on first use, protected by your Windows account.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="passwords.autoSave"></button></div>
+      </div>
+
+      <div class="row" data-when="passwords.autoSave=false">
+        <div class="info"><label>Ask before saving</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="passwords.offerToSave"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>HTTPS only</label><small>Never put a password into a plain-http page.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="passwords.requireHttps"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Auto-lock</label><small>Minutes. 0 never locks.</small></div>
+        <div class="ctl"><input type="number" data-bind="passwords.autoLockMinutes" min="0" max="240" step="5" style="width:80px"></div>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- browser -->
+    <section class="card" id="s-browser">
+      <h2>Browser</h2>
+
+      <div class="row">
+        <div class="info"><label>Home page</label></div>
+        <div class="ctl"><input type="text" data-bind="browser.homepage" style="width:280px" spellcheck="false"></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>New tab page</label></div>
+        <div class="ctl"><input type="text" data-bind="browser.newTabPage" style="width:280px" spellcheck="false"></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Default zoom</label></div>
+        <div class="ctl"><input type="range" data-bind="browser.defaultZoom" min="0.5" max="2" step="0.05"><span class="val"></span></div>
+      </div>
+
+      <h2>Shortcuts</h2>
+      <div id="sc-list"></div>
+      <div class="row">
+        <div class="info" style="display:flex;gap:8px">
+          <input type="text" id="sc-title" placeholder="Name" style="width:150px">
+          <input type="text" id="sc-url" placeholder="example.com" class="grow" spellcheck="false">
+        </div>
+        <div class="ctl"><button class="btn" id="sc-add">Add</button></div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------- data -->
+    <section class="card" id="s-data">
+      <h2>Data</h2>
+      <div class="row">
+        <div class="info"><label>Settings file</label><small id="paths"></small></div>
+        <div class="ctl">
+          <button class="btn" id="export">Export</button>
+          <button class="btn" id="import">Import</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Clear browsing data</label></div>
+        <div class="ctl"><button class="btn" id="clear">Clear</button></div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Reset all settings</label><small>Passwords are not touched.</small></div>
+        <div class="ctl"><button class="btn" id="reset">Reset</button></div>
+      </div>
+
+      <h2>Updates</h2>
+      <div class="note" id="stale-note" hidden></div>
+
+      <div class="row">
+        <div class="info"><label>This build</label><small id="update-detail">…</small></div>
+        <div class="ctl">
+          <button class="btn" id="update-check">Check</button>
+          <button class="btn primary" id="update-act" hidden>Download</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Check at startup</label></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="updates.checkOnStart"></button></div>
+      </div>
+
+      <h2>About</h2>
+      <dl class="about-grid" id="about"></dl>
+    </section>
+
+  </main>
+</div>
+
+<script src="theme.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>

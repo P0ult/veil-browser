@@ -1,0 +1,52 @@
+{
+  "name": "veil-browser",
+  "productName": "Veil",
+  "version": "1.0.0",
+  "description": "A private, ad-free browser and meta-search engine.",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "node scripts/stamp-build.js && electron-builder --win",
+    "release": "node scripts/stamp-build.js && electron-builder --win --publish always",
+    "stamp": "node scripts/stamp-build.js",
+    "set-owner": "node scripts/set-owner.js"
+  },
+  "author": "jackc",
+  "license": "MIT",
+  "private": true,
+  "build": {
+    "appId": "com.veil.browser",
+    "productName": "Veil",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YOUR-GITHUB-USERNAME",
+        "repo": "veil-browser",
+        "releaseType": "draft"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}

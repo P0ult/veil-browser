@@ -1,0 +1,197 @@
+# Releasing Veil
+
+Two separate things live in this document, and they solve different problems:
+
+- **The release feed** answers "is there a newer Veil?" — it is what makes the
+  update button in Settings do something.
+- **Code signing** answers "is this Veil, from you?" — it is what stops Windows
+  calling your installer unknown, and what stops a compromised GitHub release
+  from being installed over the top of a working browser.
+
+You can do the first without the second. Do not assume the first implies it.
+
+---
+
+## 1. Wiring the update feed
+
+### One-time setup
+
+```bash
+npm run set-owner -- YOUR-GITHUB-USERNAME
+```
+
+That writes `build.publish[0].owner` in `package.json`. electron-builder bakes
+it into `resources/app-update.yml` inside the packaged app, and that file is
+the only thing the running browser consults. Check it after a build:
+
+```bash
+cat dist/win-unpacked/resources/app-update.yml
+```
+
+Then create the repository and push:
+
+```bash
+git remote add origin https://github.com/YOUR-GITHUB-USERNAME/veil-browser.git
+git branch -M main
+git push -u origin main
+```
+
+**The repository has to be public.** electron-updater fetches
+`latest.yml` and the installer as an anonymous HTTP client. A private repo
+would need a GitHub token compiled into the app, and a token shipped to every
+user is not a secret — it is a credential you have published, with write access
+to your account. Public repo, or no automatic updates.
+
+### Cutting a release
+
+```bash
+npm version 1.0.1
+git push --follow-tags
+```
+
+The tag push triggers `.github/workflows/release.yml`, which builds on a
+GitHub-hosted Windows runner and uploads to a **draft** release. Nothing
+reaches anybody until you open Releases and press Publish — electron-updater
+ignores drafts, so a half-built version cannot escape.
+
+To build on your own machine instead (needed once you sign locally — see
+below), set a GitHub token with `repo` scope in the environment and run:
+
+```bash
+npm run release
+```
+
+Do not paste a token into a file in this repo. Put it in your own environment.
+
+### What the installed browser then does
+
+`src/main/updater.js` checks the feed on demand. It never downloads and never
+installs without being asked; `autoDownload` and `autoInstallOnAppQuit` are
+both off, deliberately. If the feed is unreachable it says so instead of
+pretending to be current.
+
+`version` in `package.json` is the whole comparison. A release tagged `v1.0.1`
+built from a `package.json` that still says `1.0.0` will be published and then
+ignored by every installed copy.
+
+---
+
+## 2. Signing
+
+### What it actually buys you
+
+1. **The installer stops saying "Unknown publisher".** SmartScreen's blue
+   "Windows protected your PC" page is the current cost of handing someone an
+   unsigned `.exe`; they have to click "More info" → "Run anyway", which is
+   exactly the habit you do not want to teach a privacy-minded friend.
+2. **Updates get verified.** This is the part that matters more. When a build
+   is signed, electron-builder writes `publisherName` into `app-update.yml`,
+   and `NsisUpdater.verifySignature()` then checks every downloaded installer
+   against that name before running it. Right now that check is skipped —
+   `publisherName` is absent, and the code returns `null` and installs anyway
+   (`node_modules/electron-updater/out/NsisUpdater.js`). So today the security
+   of an update rests entirely on GitHub's TLS and your account not being
+   compromised. Signing adds a second lock that an attacker with your GitHub
+   password still cannot pick.
+
+Note the order: signing is worth more *because* you wired up updates. An app
+that never updates has a smaller attack surface here.
+
+### The awkward part
+
+Since June 2023 you cannot simply buy a `.pfx` file and sign with it. Every
+publicly trusted code-signing key must live on FIPS-certified hardware — a USB
+token, or a cloud HSM. That rules out the old workflow of committing an
+encrypted certificate and signing in CI.
+
+Three realistic routes, cheapest first:
+
+| Route | Rough cost | Works in GitHub Actions | Notes |
+| --- | --- | --- | --- |
+| **Azure Trusted Signing** | ~$10/month | Yes | Microsoft's own service. Individual identity validation is available. Certificates are short-lived and issued per-signing over an API, so there is no key for you to lose. |
+| **OV certificate on a USB token** (Certum's open-source offering is the cheap end; Sectigo/DigiCert the expensive end) | ~€100–400/year | No — the token must be physically present | You sign on your own machine, with the token plugged in and a PIN typed by you. |
+| **EV certificate** | ~$400+/year | Only with a cloud HSM variant | Historically the fastest route to a clean SmartScreen prompt. |
+
+Prices move; check before committing. Self-signed certificates are not on this
+list on purpose: Windows treats them exactly like no signature at all unless
+the recipient installs your root certificate first, which is a worse thing to
+ask of someone than clicking "Run anyway".
+
+### Azure Trusted Signing
+
+Once the Azure resources exist (a Trusted Signing account, a certificate
+profile, and an app registration with the *Trusted Signing Certificate Profile
+Signer* role), add this to `build.win` in `package.json`:
+
+```json
+"azureSignOptions": {
+  "publisherName": "Your Name",
+  "endpoint": "https://eus.codesigning.azure.net",
+  "codeSigningAccountName": "your-account",
+  "certificateProfileName": "your-profile"
+}
+```
+
+`publisherName` must match the certificate subject exactly — this is the
+string the updater will later compare against, so a typo here means every
+future update fails verification rather than failing loudly now.
+
+Authentication comes from the environment, never from the repo:
+
+```
+AZURE_TENANT_ID
+AZURE_CLIENT_ID
+AZURE_CLIENT_SECRET
+```
+
+In GitHub Actions those go in repository secrets and get added to the `env:`
+block of the `npm run release` step. Then the workflow signs as it builds.
+
+### A certificate on a USB token
+
+No `package.json` change. Plug the token in and build locally:
+
+```bash
+npm run release
+```
+
+electron-builder finds the certificate through Windows' own store. If you have
+more than one, name it:
+
+```json
+"signtoolOptions": { "certificateSubjectName": "Your Name" }
+```
+
+You will be prompted for the token PIN, possibly several times — the build
+signs `Veil.exe`, `elevate.exe`, the uninstaller, the NSIS installer and the
+portable build separately. Some tokens can cache the PIN for a session; that
+is a setting in the token's own software, not something to script around.
+
+CI cannot do this. If you go this route, releases get built on your machine and
+`.github/workflows/release.yml` becomes a convenience for unsigned test builds
+only — or you delete it.
+
+### Verifying it worked
+
+```powershell
+Get-AuthenticodeSignature "dist\Veil Setup 1.0.0.exe" | Format-List Status, SignerCertificate
+```
+
+`Status : Valid` is what you want. Note that electron-builder prints
+`signing with signtool.exe` during every build, signed or not — it is
+announcing the step, not the result. The command above is the truth.
+
+Then check that the publisher name made it into the feed file, because this is
+what future updates are checked against:
+
+```bash
+grep publisherName dist/win-unpacked/resources/app-update.yml
+```
+
+### Until it is signed
+
+Handing over an unsigned build is not unreasonable; it is just something to say
+out loud rather than let the recipient discover. Publish the SHA-512 that
+`latest.yml` already contains, tell them SmartScreen will complain, and tell
+them the update path is currently trusted on the strength of your GitHub
+account alone.

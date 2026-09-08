@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data:; font-src veil:">
+<title>Veil</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="chrome.css">
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-fwd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></symbol>
+  <symbol id="i-reload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.1 8.4-7.5 9.5-4.4-1.1-7.5-4.9-7.5-9.5V6z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.8a3.5 3.5 0 1 1 7 0v2.7"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.6 3.6 5.4 3.6 8.5S14.4 18.4 12 20.5c-2.4-2.1-3.6-5-3.6-8.5S9.6 6.1 12 3.5z"/></symbol>
+  <symbol id="i-veil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 19 6.6v5.1c0 4.3-2.9 7.8-7 8.8-4.1-1-7-4.5-7-8.8V6.6z"/><path d="M9.2 12.1 11.3 14l3.6-4"/></symbol>
+  <symbol id="i-tunnel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 16 0v8H4z"/><path d="M9.5 20v-8a2.5 2.5 0 0 1 5 0v8"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="5.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="18.5" r="1.4" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M17.5 6.5 6.5 17.5"/><path d="m6.5 6.5 11 11"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m6 10 6 6 6-6"/></symbol>
+  <symbol id="i-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M10 4.5v15"/></symbol>
+  <symbol id="i-win-min" viewBox="0 0 12 12" fill="none" stroke="currentColor"><path d="M2 6h8"/></symbol>
+  <symbol id="i-win-max" viewBox="0 0 12 12" fill="none" stroke="currentColor"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/></symbol>
+  <symbol id="i-win-restore" viewBox="0 0 12 12" fill="none" stroke="currentColor"><rect x="2" y="4" width="6" height="6" rx="1"/><path d="M4.5 4V2.8A.8.8 0 0 1 5.3 2H9.2a.8.8 0 0 1 .8.8v3.9a.8.8 0 0 1-.8.8H8"/></symbol>
+  <symbol id="i-win-close" viewBox="0 0 12 12" fill="none" stroke="currentColor"><path d="M2.5 2.5 9.5 9.5"/><path d="M9.5 2.5 2.5 9.5"/></symbol>
+</svg>
+
+<div id="chrome" data-mode="top" data-collapsed="0">
+
+  <!-- vertical mode: a full-height rail down the left -->
+  <aside class="sidebar" id="sidebar">
+    <div class="side-head">
+      <div class="brand" title="Veil"><svg class="icon"><use href="#i-veil"/></svg></div>
+      <span class="side-name">Veil</span>
+      <button id="side-collapse" title="Collapse the tab rail"><svg class="icon"><use href="#i-collapse"/></svg></button>
+    </div>
+    <div class="side-tabs" id="side-tabs"></div>
+    <button class="side-add" id="side-new-tab" title="New tab (Ctrl+T)">
+      <svg class="icon"><use href="#i-plus"/></svg><span>New tab</span>
+    </button>
+  </aside>
+
+  <div class="main" id="main">
+
+    <!-- horizontal mode: the usual strip across the top -->
+    <div class="tabstrip" id="tabstrip">
+      <div class="brand" title="Veil"><svg class="icon"><use href="#i-veil"/></svg></div>
+      <div class="tabs-host" id="top-tabs"></div>
+      <button class="tab-add" id="new-tab" title="New tab (Ctrl+T)"><svg class="icon"><use href="#i-plus"/></svg></button>
+      <div class="drag-space"></div>
+    </div>
+
+    <div class="topbar" id="topbar">
+      <div class="toolbar" id="toolbar">
+        <button id="nav-back" title="Back"><svg class="icon"><use href="#i-back"/></svg></button>
+        <button id="nav-fwd" title="Forward"><svg class="icon"><use href="#i-fwd"/></svg></button>
+        <button id="nav-reload" title="Reload"><svg class="icon"><use href="#i-reload"/></svg></button>
+        <button id="nav-home" title="Home"><svg class="icon"><use href="#i-home"/></svg></button>
+
+        <div class="omnibox" id="omnibox">
+          <svg class="icon scheme" id="scheme-icon"><use href="#i-lock"/></svg>
+          <input id="url" type="text" spellcheck="false" autocomplete="off" autocorrect="off"
+                 autocapitalize="off" placeholder="Search or enter address" aria-label="Address and search bar">
+          <button id="shield" class="shield" title="Blocked on this page">
+            <svg class="icon"><use href="#i-shield"/></svg><span id="shield-count">0</span>
+          </button>
+        </div>
+
+        <button id="tunnel" class="tunnel" title="Tunnel">
+          <svg class="icon"><use href="#i-tunnel"/></svg><span id="tunnel-label">Tunnel</span>
+        </button>
+        <button id="menu" title="Menu"><svg class="icon"><use href="#i-menu"/></svg></button>
+      </div>
+
+      <div class="shelf" id="findbar" hidden>
+        <input id="find-input" type="text" spellcheck="false" autocomplete="off" placeholder="Find in page">
+        <span class="find-count" id="find-count"></span>
+        <button id="find-prev" title="Previous"><svg class="icon"><use href="#i-up"/></svg></button>
+        <button id="find-next" title="Next"><svg class="icon"><use href="#i-down"/></svg></button>
+        <button id="find-close" title="Close"><svg class="icon"><use href="#i-x"/></svg></button>
+      </div>
+
+      <div class="shelf prompt" id="prompt" hidden>
+        <span id="prompt-text"></span>
+        <span class="prompt-actions" id="prompt-actions"></span>
+      </div>
+
+      <div class="shelf toast" id="toast" hidden>
+        <span class="dot"></span>
+        <span id="toast-text"></span>
+        <button id="toast-close" title="Dismiss"><svg class="icon"><use href="#i-x"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- moved between the tab strip and the toolbar depending on the mode -->
+  <div class="wincontrols" id="wincontrols">
+    <button id="win-min" title="Minimise"><svg class="wc"><use href="#i-win-min"/></svg></button>
+    <button id="win-max" title="Maximise"><svg class="wc"><use href="#i-win-max"/></svg></button>
+    <button id="win-close" class="danger" title="Close"><svg class="wc"><use href="#i-win-close"/></svg></button>
+  </div>
+
+  <!-- the single tab list, re-parented into whichever host is in use -->
+  <div class="tabs" id="tabs"></div>
+</div>
+
+<script src="theme.js"></script>
+<script src="chrome.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data: https:; font-src veil:">
+<title>New tab</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-veil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 19 6.6v5.1c0 4.3-2.9 7.8-7 8.8-4.1-1-7-4.5-7-8.8V6.6z"/><path d="M9.2 12.1 11.3 14l3.6-4"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+</svg>
+
+<div class="home wrap">
+
+  <div class="mark" id="mark">
+    <svg><use href="#i-veil"/></svg>
+    <span class="name">Veil</span>
+  </div>
+
+  <div class="clock" id="clock" hidden></div>
+  <div class="greeting" id="greeting" hidden></div>
+
+  <form class="searchbox" id="form" autocomplete="off">
+    <svg><use href="#i-search"/></svg>
+    <input id="q" type="text" spellcheck="false" autocomplete="off" autocorrect="off"
+           autocapitalize="off" placeholder="Search the web privately" aria-label="Search">
+    <button class="go" type="submit">Search</button>
+  </form>
+
+  <div class="shortcuts" id="shortcuts"></div>
+
+  <div class="stats" id="stats"></div>
+</div>
+
+<dialog id="dlg">
+  <form method="dialog" id="dlg-form">
+    <h3 id="dlg-title">Add shortcut</h3>
+    <label>Name<input id="dlg-name" type="text" placeholder="Wikipedia" required></label>
+    <label>Address<input id="dlg-url" type="text" placeholder="wikipedia.org" required></label>
+    <div class="dlg-actions">
+      <button class="btn" value="cancel" type="submit" formnovalidate>Cancel</button>
+      <button class="btn primary" value="ok" type="submit">Add</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="theme.js"></script>
+<script src="home.js"></script>
+</body>
+</html>

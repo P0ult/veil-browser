@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data:">
+<title>Not encrypted</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-open-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 6.9-.8"/></symbol>
+</svg>
+
+<div class="message">
+  <div class="badge" style="color:var(--warn)"><svg><use href="#i-open-lock"/></svg></div>
+  <h1 id="head">This site will not load securely</h1>
+  <p>Veil asked for an encrypted connection and the site could not give one. Anything sent over
+     the unencrypted version — passwords, messages, form entries — can be read and changed by
+     anyone between you and the site.</p>
+  <div class="mono" id="url"></div>
+  <div class="actions">
+    <button class="btn primary" id="back">Go back</button>
+    <button class="btn" id="continue">Continue unencrypted</button>
+  </div>
+  <p class="fineprint" id="fineprint">Continuing applies to this site for the rest of this session only.</p>
+</div>
+
+<script src="theme.js"></script>
+<script src="insecure.js"></script>
+</body>
+</html>
