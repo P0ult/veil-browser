@@ -61,13 +61,21 @@ function hydrate(skipFocused) {
       el.value = String(value);
     } else if (el.type === 'range' || el.type === 'number') {
       el.value = Number(value);
-      const val = el.parentElement.querySelector('.val');
-      if (val) val.textContent = formatVal(path, value);
+      showVal(el, path, value);
     } else {
       el.value = value == null ? '' : String(value);
     }
   }
   refreshConditionals();
+}
+
+/* The readout beside a slider. This has to be driven from the input event as
+   well as from hydrate(): hydrate deliberately skips whichever control has
+   focus so it cannot fight the user mid-drag, and the slider being dragged is
+   exactly that control - so the number sat still until the tab was reloaded. */
+function showVal(el, path, value) {
+  const val = el.parentElement && el.parentElement.querySelector('.val');
+  if (val) val.textContent = formatVal(path, value);
 }
 
 function formatVal(path, v) {
@@ -103,7 +111,10 @@ function bindAll() {
     const event = (el.type === 'range' || el.type === 'color') ? 'input' : 'change';
     el.addEventListener(event, () => {
       let value = el.value;
-      if (el.type === 'range' || el.type === 'number') value = Number(value);
+      if (el.type === 'range' || el.type === 'number') {
+        value = Number(value);
+        showVal(el, path, value);
+      }
       if (el.type === 'color' || el.type === 'text') {
         // Keep the paired colour picker and hex field in step.
         for (const twin of controls()) {

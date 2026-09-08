@@ -362,7 +362,11 @@ select { cursor: pointer; padding-right: 6px; }
   border: 1px solid var(--border);
   font-size: 12px;
 }
-.chip button { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 5px; font-size: 12px; line-height: 1; }
+/* The small round remove button on a chip. Scoped away from .switch: a chip
+   can also hold a toggle, and a bare `.chip button` rule outranks `.switch`
+   on specificity, which squashed those toggles into 16px checkbox-like
+   squares that still animated like sliders. */
+.chip button:not(.switch) { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 5px; font-size: 12px; line-height: 1; }
 
 .note {
   padding: 13px 15px;
