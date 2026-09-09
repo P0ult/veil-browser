@@ -33,6 +33,7 @@ const DEFAULTS = {
     tabLayout: 'top',              // top | side (a vertical rail of tabs)
     sidebarWidth: 220,
     sidebarCollapsed: false,
+    autoHideChrome: false,         // the whole chrome slides away until hovered
     chromeOpacity: 0.72,
     greeting: '',
     showClock: true,

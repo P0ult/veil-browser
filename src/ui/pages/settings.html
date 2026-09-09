@@ -155,6 +155,11 @@
         <div class="ctl"><input type="range" data-bind="appearance.sidebarWidth" min="150" max="420" step="10"><span class="val"></span></div>
       </div>
 
+      <div class="row">
+        <div class="info"><label>Hide the chrome</label><small>The toolbar and tabs slide out of the way, leaving only the page. Move the pointer to the very top of the window to bring them back.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="appearance.autoHideChrome"></button></div>
+      </div>
+
       <div class="row" data-when="appearance.tabLayout=side">
         <div class="info"><label>Collapse to icons</label><small>The rail shows favicons only, and widens to show titles while you hover it.</small></div>
         <div class="ctl"><button class="switch" role="switch" data-bind="appearance.sidebarCollapsed"></button></div>

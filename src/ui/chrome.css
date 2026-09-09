@@ -449,7 +449,8 @@ html, body { overflow: hidden; background: transparent; }
    #chrome, so there is no width rule here to fight with it. */
 #chrome[data-collapsed="1"][data-peek="1"] .side-name,
 #chrome[data-collapsed="1"][data-peek="1"] .side-add span,
-#chrome[data-collapsed="1"][data-peek="1"] .tab .title { display: revert; }
+#chrome[data-collapsed="1"][data-peek="1"] .tab .title,
+#chrome[data-collapsed="1"][data-peek="1"] .tab .close { display: revert; }
 #chrome[data-collapsed="1"][data-peek="1"] .side-head { padding: 0 10px 0 12px; justify-content: flex-start; }
 #chrome[data-collapsed="1"][data-peek="1"] .tab,
 #chrome[data-collapsed="1"][data-peek="1"] .side-add { justify-content: flex-start; padding: 0 8px; }

@@ -186,6 +186,11 @@ function render() {
 
 els.url.addEventListener('focus', () => {
   editing = true;
+  // Ctrl+L must not focus something the user cannot see.
+  pinned = true;
+  clearTimeout(revealTimer);
+  revealWanted = 1;
+  if (autoHiding()) slideReveal(1);
   const t = activeTab();
   if (t && !t.url.startsWith('veil://home')) els.url.value = t.url;
   requestAnimationFrame(() => els.url.select());
@@ -194,6 +199,8 @@ els.url.addEventListener('focus', () => {
 
 els.url.addEventListener('blur', () => {
   editing = false;
+  pinned = false;
+  showChrome(false);
   els.omnibox.classList.remove('focused');
   renderToolbar();
 });
@@ -239,6 +246,66 @@ $('side-new-tab').addEventListener('click', () => veil.tab.open());
 const PEEK_IN = 180, PEEK_OUT = 140, PEEK_MS = 170;
 const RAIL_MIN = 52;                       // matches the collapsed width in the CSS
 let peekTimer = null, peekRaf = 0, railW = RAIL_MIN;
+
+/* Hiding the chrome entirely.
+ *
+ * With "Hide the chrome" on, the toolbar and tabs slide out of the way and the
+ * page has the window to itself. A sliver of chrome is deliberately left on
+ * screen: it is what the pointer can find to bring the rest back, and with no
+ * window buttons showing it is also the only thing left to drag the window by.
+ * Six pixels is small enough to read as a border and big enough to hit.
+ *
+ * `reveal` runs 0 (hidden) to 1 (fully out), and every frame of it is reported
+ * so the page slides in step - and, as with the rail, slides rather than
+ * resizes, so no frame costs a document relayout.
+ */
+const STRIP = 6;
+const REVEAL_IN = 60, REVEAL_OUT = 260, REVEAL_MS = 190;
+let reveal = 1, revealWanted = 1, revealRaf = 0, revealTimer = null;
+let pinned = false;          // held open while the address bar has focus
+let hidingWas = null;
+
+function autoHiding() {
+  const a = (settings && settings.appearance) || {};
+  return !!a.autoHideChrome;
+}
+
+function slideReveal(to, done) {
+  cancelAnimationFrame(revealRaf);
+  const from = reveal;
+  if (Math.abs(from - to) < 0.002) { reveal = to; reportLayout(); if (done) done(); return; }
+  const t0 = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / REVEAL_MS);
+    reveal = from + (to - from) * (1 - Math.pow(1 - p, 3));
+    reportLayout();
+    if (p < 1) revealRaf = requestAnimationFrame(step);
+    else if (done) done();
+  };
+  revealRaf = requestAnimationFrame(step);
+}
+
+/** Idempotent, because mousemove asks for this many times a second. */
+function showChrome(on) {
+  if (!autoHiding()) return;
+  if (on) {
+    if (revealWanted === 1) return;
+    revealWanted = 1;
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(() => slideReveal(1), REVEAL_IN);
+  } else {
+    if (pinned || revealWanted === 0) return;
+    revealWanted = 0;
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(() => slideReveal(0), REVEAL_OUT);
+  }
+}
+
+// mousemove as well as mouseenter: entering a six pixel strip at speed is easy
+// to miss, and asking twice costs nothing.
+document.documentElement.addEventListener('mouseenter', () => showChrome(true));
+document.documentElement.addEventListener('mousemove', () => showChrome(true));
+document.documentElement.addEventListener('mouseleave', () => showChrome(false));
 
 function railFullWidth() {
   const a = (settings && settings.appearance) || {};
@@ -473,6 +540,18 @@ function applyLayout(s) {
   delete els.chrome.dataset.peek;
   els.chrome.style.removeProperty('--sidebar-w');
   railW = collapsed ? RAIL_MIN : Math.max(150, Math.min(420, Number(a.sidebarWidth) || 220));
+
+  // Only reset the reveal when the setting itself is what changed. Settings
+  // arrive for all sorts of reasons, and a chrome that ducked away every time
+  // one landed would be maddening while the pointer is resting on it.
+  const hiding = !!a.autoHideChrome;
+  if (hiding !== hidingWas) {
+    cancelAnimationFrame(revealRaf);
+    clearTimeout(revealTimer);
+    pinned = false;
+    reveal = revealWanted = hiding ? 0 : 1;
+    hidingWas = hiding;
+  }
   document.documentElement.style.setProperty(
     '--sidebar-full', Math.max(150, Math.min(420, Number(a.sidebarWidth) || 220)) + 'px');
 
@@ -492,12 +571,25 @@ function applyLayout(s) {
  */
 function reportLayout() {
   const mode = els.chrome.dataset.mode === 'side' ? 'side' : 'top';
-  const top = mode === 'side'
+  const fullTop = mode === 'side'
     ? Math.ceil(els.topbar.getBoundingClientRect().height)
     : Math.ceil(els.chrome.getBoundingClientRect().height);
-  const left = mode === 'side' ? Math.ceil(els.sidebar.getBoundingClientRect().width) : 0;
+  const fullLeft = mode === 'side' ? Math.ceil(els.sidebar.getBoundingClientRect().width) : 0;
+
+  const hiding = autoHiding();
+  const f = hiding ? reveal : 1;
+  const top = Math.round(STRIP + (fullTop - STRIP) * f);
+  const left = Math.round(fullLeft * f);
+
+  // What the page's current size was measured against, so the main process
+  // knows to move it rather than resize it. Hiding wins over the rail peek:
+  // when both are in play the resting state is the fully hidden one.
   const peeking = mode === 'side' && els.chrome.dataset.peek === '1';
-  veil.reportLayout({ mode, top, left, peekBase: peeking ? RAIL_MIN : null });
+  const peekBase = hiding ? { top: STRIP, left: 0 }
+    : peeking ? { top, left: RAIL_MIN }
+    : null;
+
+  veil.reportLayout({ mode, top, left, peekBase });
 }
 
 const layoutWatcher = new ResizeObserver(() => reportLayout());

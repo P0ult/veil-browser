@@ -49,24 +49,27 @@ class TabManager {
   /**
    * Where the page sits.
    *
-   * `peekBase` is what makes the tab rail's hover animation smooth. Resizing a
+   * `peekBase` is what makes the chrome's hover animations smooth. Resizing a
    * WebContentsView relayouts the entire document inside it, and doing that on
-   * every frame of an animation is what turns a 170ms slide into a stutter.
-   * So while the rail is peeking the page keeps the width it had when the rail
-   * was narrow and only its x moves: a translation repaints, it does not
-   * reflow. The page overhangs the right edge of the window by however far the
-   * rail has opened, which nobody notices for the moment a pointer rests on
-   * the rail, and it is resized exactly once when the rail settles back.
+   * every frame of an animation is what turns a short slide into a stutter.
+   * So while anything is sliding - the tab rail opening, or the whole chrome
+   * coming back from hiding - the page keeps the size it had in the resting
+   * state and only its x and y move: a translation repaints, it does not
+   * reflow. It overhangs the window by however far the chrome has opened,
+   * which nobody notices for the moment a pointer rests there, and it is sized
+   * properly again the moment things settle back.
    */
   contentBounds() {
     const [w, h] = this.win.getContentSize();
     const { top, left } = this.inset;
-    const widthFrom = this.peekBase == null ? left : this.peekBase;
+    const base = this.peekBase;
+    const widthFrom = (base && base.left != null) ? base.left : left;
+    const heightFrom = (base && base.top != null) ? base.top : top;
     return {
       x: left,
       y: top,
       width: Math.max(0, w - widthFrom),
-      height: Math.max(0, h - top)
+      height: Math.max(0, h - heightFrom)
     };
   }
 
