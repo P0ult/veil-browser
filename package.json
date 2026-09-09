@@ -10,7 +10,9 @@
     "dist": "node scripts/stamp-build.js && electron-builder --win",
     "release": "node scripts/stamp-build.js && electron-builder --win --publish always",
     "stamp": "node scripts/stamp-build.js",
-    "set-owner": "node scripts/set-owner.js"
+    "set-owner": "node scripts/set-owner.js",
+    "dist:mac": "node scripts/stamp-build.js && electron-builder --mac",
+    "release:mac": "node scripts/stamp-build.js && electron-builder --mac --publish always"
   },
   "author": "jackc",
   "license": "MIT",
@@ -40,7 +42,27 @@
         "repo": "veil-browser",
         "releaseType": "draft"
       }
-    ]
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "darkModeSupport": true,
+      "identity": null,
+      "notarize": false
+    }
   },
   "devDependencies": {
     "electron": "^44.2.0",

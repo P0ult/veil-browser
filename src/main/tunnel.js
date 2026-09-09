@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const { spawn, execFile } = require('node:child_process');
 const { app, net, safeStorage } = require('electron');
 const { SocksRelay } = require('./socks-relay');
+const { MAC, firstExisting, wstunnelCandidates, TOR_BUNDLE_PLATFORM, TOR_BINARY } = require('./platform');
 
 /**
  * The in-browser tunnel.
@@ -38,8 +39,10 @@ const TOR_VERSION_URL = 'https://aus1.torproject.org/torbrowser/update_3/release
 const TOR_ARCHIVE_BASE = 'https://archive.torproject.org/tor-package-archive/torbrowser';
 const TOR_FALLBACK_VERSION = '14.5.1';
 
-const DEFAULT_WSTUNNEL = path.join(
-  process.env.LOCALAPPDATA || '', 'TunnelVPN', 'bin', 'wstunnel.exe');
+// Blank setting means "look wherever this platform usually keeps it". The
+// macOS Tunnel VPN installs wstunnel with Homebrew; the Windows build ships it
+// beside the app.
+const DEFAULT_WSTUNNEL = firstExisting(wstunnelCandidates()) || wstunnelCandidates()[0] || '';
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -487,7 +490,7 @@ class Tunnel {
   torExe() {
     const custom = (this.settings.get('tunnel.torPath', '') || '').trim();
     if (custom) return custom;
-    return path.join(this.dir, 'tor', 'tor.exe');
+    return path.join(this.dir, 'tor', TOR_BINARY);
   }
 
   async startTor() {
@@ -570,14 +573,14 @@ class Tunnel {
   }
 
   /**
-   * Fetch the official Tor expert bundle, check it against the published
-   * SHA-256, and unpack it. Windows ships tar, so there is no archive
-   * dependency to add.
+   * Fetch the official Tor expert bundle for this platform and architecture,
+   * check it against the published SHA-256, and unpack it. Both Windows and
+   * macOS ship tar, so there is no archive dependency to add.
    */
   async downloadTor() {
     this.set(STATE.DOWNLOADING, 'Looking up the current Tor release', 0);
     const version = await this.torVersion();
-    const name = `tor-expert-bundle-windows-x86_64-${version}.tar.gz`;
+    const name = `tor-expert-bundle-${TOR_BUNDLE_PLATFORM}-${version}.tar.gz`;
     const url = `${TOR_ARCHIVE_BASE}/${version}/${name}`;
 
     fs.mkdirSync(this.dir, { recursive: true });
@@ -589,8 +592,9 @@ class Tunnel {
     } catch (e) {
       throw new Error(
         'Could not reach torproject.org (' + e.message + '). ' +
-        'Tor may be blocked on this network. Point Veil at an existing tor.exe ' +
-        'in Settings > Tunnel, or switch the provider to your own SOCKS5 endpoint.'
+        'Tor may be blocked on this network. Point Veil at an existing Tor ' +
+        'binary in Settings > Tunnel, or switch the provider to your own ' +
+        'SOCKS5 endpoint.'
       );
     }
 
@@ -610,6 +614,11 @@ class Tunnel {
         (err) => (err ? reject(new Error('Unpacking failed: ' + err.message)) : resolve()));
     });
     try { fs.unlinkSync(tmp); } catch {}
+
+    // tar preserves the executable bit, but the archive is not ours to trust
+    // on that point and a Tor that cannot be executed fails later as a
+    // confusing ENOENT rather than a permissions error.
+    if (MAC) { try { fs.chmodSync(this.torExe(), 0o755); } catch {} }
   }
 
   /** The checksum file the Tor Project publishes beside each build. */

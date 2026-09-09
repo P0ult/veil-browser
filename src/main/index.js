@@ -10,6 +10,7 @@ const { SearchEngine } = require('./search');
 const { Vpn } = require('./vpn');
 const { Tunnel } = require('./tunnel');
 const { Vault } = require('./vault');
+const { VPN_PICKER } = require('./platform');
 const { Updater } = require('./updater');
 const crypto = require('node:crypto');
 const { TabManager } = require('./tabs');
@@ -569,9 +570,9 @@ function wireIpc() {
 
   ipcMain.handle('settings:pick-exe', guard(async () => {
     const r = await dialog.showOpenDialog(win, {
-      title: 'Locate TunnelVPN.exe',
+      title: VPN_PICKER.title,
       properties: ['openFile'],
-      filters: [{ name: 'Programs', extensions: ['exe'] }]
+      filters: VPN_PICKER.filters
     });
     if (r.canceled || !r.filePaths[0]) return null;
     settings.update({ vpn: { exePath: r.filePaths[0] } });

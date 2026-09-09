@@ -46,3 +46,31 @@ jobs:
       - run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Apple Silicon. This has to run on a Mac - a .dmg cannot be produced on
+  # Windows - and GitHub's macos-latest runners are arm64, so the build is
+  # native rather than cross-compiled.
+  #
+  # It waits for the Windows job so that only one of the two creates the draft
+  # release; both would otherwise race and split the assets across two drafts.
+  macos:
+    needs: windows
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - run: npm run release:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # There is no Developer ID certificate here. Without this,
+          # electron-builder hunts for one and fails the build rather than
+          # producing the unsigned app we actually want.
+          CSC_IDENTITY_AUTO_DISCOVERY: false

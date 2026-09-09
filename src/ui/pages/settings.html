@@ -267,17 +267,17 @@
       </div>
 
       <div class="row" data-when="tunnel.provider=tor">
-        <div class="info"><label>Existing tor.exe</label><small>Leave blank to let Veil download and verify its own copy.</small></div>
+        <div class="info"><label>Existing Tor binary</label><small>Leave blank to let Veil download and verify its own copy.</small></div>
         <div class="ctl"><input type="text" data-bind="tunnel.torPath" style="width:300px" spellcheck="false" placeholder="Optional path"></div>
       </div>
 
       <div class="row" data-when="tunnel.provider=system">
-        <div class="info"><label>How this works</label><small>Tunnel VPN carries every app on the machine, so Veil does not proxy on top of it — it just tracks the connection and cuts browser traffic if the VPN drops. One UAC prompt when you press Connect.</small></div>
+        <div class="info"><label>How this works</label><small>Tunnel VPN carries every app on the machine, so Veil does not proxy on top of it — it just tracks the connection and cuts browser traffic if the VPN drops. One administrator prompt when you press Connect.</small></div>
         <div class="ctl"><button class="btn" id="vpn-open-2">Open Tunnel VPN</button></div>
       </div>
 
       <div class="row" data-when="tunnel.provider=wstunnel">
-        <div class="info"><label>How this works</label><small>Routes only the browser through your own VPN server over wstunnel — no OpenVPN, no virtual adapter, no UAC. Your server must be willing to relay somewhere other than the OpenVPN port.</small></div>
+        <div class="info"><label>How this works</label><small>Routes only the browser through your own VPN server over wstunnel — no OpenVPN, no virtual adapter, no administrator prompt. Your server must be willing to relay somewhere other than the OpenVPN port.</small></div>
         <div class="ctl"></div>
       </div>
 
@@ -297,7 +297,7 @@
       </div>
 
       <div class="row" data-when="tunnel.provider=wstunnel">
-        <div class="info"><label>wstunnel.exe</label><small>Blank uses the copy Tunnel VPN installs.</small></div>
+        <div class="info"><label>wstunnel</label><small>Blank uses the copy Tunnel VPN installs.</small></div>
         <div class="ctl"><input type="text" data-bind="tunnel.wstunnelPath" style="width:300px" spellcheck="false" placeholder="Optional path"></div>
       </div>
 
@@ -315,7 +315,7 @@
       </div>
 
       <div class="row" data-when="tunnel.provider=socks,http,wstunnel">
-        <div class="info"><label>Sign in</label><small id="cred-state">Stored with your Windows account, never in the settings file. Most VPNs need service credentials, not your account login.</small></div>
+        <div class="info"><label>Sign in</label><small id="cred-state">Stored by your operating system (Windows DPAPI, macOS Keychain), never in the settings file. Most VPNs need service credentials, not your account login.</small></div>
         <div class="ctl">
           <input type="text" id="proxy-user" placeholder="Username" style="width:150px" spellcheck="false" autocomplete="off">
           <input type="password" id="proxy-pass" placeholder="Password" style="width:150px" autocomplete="off">
@@ -484,7 +484,7 @@
       </div>
 
       <div class="row">
-        <div class="info"><label>Save new logins automatically</label><small>No prompt. Creates the vault on first use, protected by your Windows account.</small></div>
+        <div class="info"><label>Save new logins automatically</label><small>No prompt. Creates the vault on first use, protected by your operating system account.</small></div>
         <div class="ctl"><button class="switch" role="switch" data-bind="passwords.autoSave"></button></div>
       </div>
 

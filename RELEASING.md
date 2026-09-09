@@ -82,6 +82,53 @@ ignored by every installed copy.
 
 ---
 
+## 1b. macOS (Apple Silicon)
+
+A `.dmg` cannot be built on Windows, so the `macos` job in the workflow does
+it on a GitHub-hosted Apple Silicon runner. It waits for the Windows job so
+that only one of the two creates the draft release.
+
+It produces `Veil-1.0.0-arm64.dmg`, `Veil-1.0.0-arm64-mac.zip` and
+`latest-mac.yml`. The zip is not a convenience copy - electron-updater reads
+it, not the dmg.
+
+### Gatekeeper, and why the Mac build is harsher than the Windows one
+
+There is no Developer ID certificate, so `CSC_IDENTITY_AUTO_DISCOVERY=false`
+tells electron-builder to stop looking for one and ship the app unsigned.
+
+On Apple Silicon that is a real obstacle, not a warning to click through.
+macOS quarantines anything downloaded from a browser, and an unsigned
+quarantined app is refused with **"Veil is damaged and can't be opened"** -
+which is a lie, but an unhelpfully convincing one. There is no "open anyway"
+button in that dialog.
+
+The fix, once, after dragging Veil to Applications:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Veil.app
+```
+
+Right-click → Open works on some macOS versions and not others; the command
+above always works. Put it in the release notes, because a Mac user who hits
+"damaged" without warning will reasonably assume the download is corrupt.
+
+**Auto-updates do not work unsigned on macOS.** electron-updater validates the
+signature before swapping the app in, and there is nothing to validate. Mac
+users can be told about a new version but must install it by hand. This is not
+true of the Windows build, where the check is skipped when unsigned. Fixing it
+means the Apple Developer Program, $99/year - a separate purchase from any
+Windows certificate.
+
+### Building on a Mac directly
+
+```bash
+npm run dist:mac      # local build, no upload
+npm run release:mac   # build and upload to the draft release
+```
+
+---
+
 ## 2. Signing
 
 ### What it actually buys you

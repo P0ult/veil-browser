@@ -3,26 +3,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { app } = require('electron');
+const { firstExisting, vpnCandidates } = require('./platform');
 
-// Where Tunnel VPN usually ends up, in order of likelihood. Nothing is
-// hardcoded to one machine: the browser looks for the first of these that
-// exists, and the settings page has a file picker for everything else.
-const VPN_CANDIDATES = [
-  ['USERPROFILE', String.raw`Downloads\TunnelVPN-win\Tunnel VPN\TunnelVPN.exe`],
-  ['USERPROFILE', String.raw`Downloads\Tunnel VPN\TunnelVPN.exe`],
-  ['LOCALAPPDATA', String.raw`TunnelVPN\TunnelVPN.exe`],
-  ['ProgramFiles', String.raw`Tunnel VPN\TunnelVPN.exe`],
-  ['ProgramFiles(x86)', String.raw`Tunnel VPN\TunnelVPN.exe`]
-];
-
+// Tunnel VPN ships for both Windows and macOS and lands in different places on
+// each. Nothing is hardcoded to one machine: the browser takes the first of
+// the usual locations that exists, and the settings page has a picker for
+// everything else. The lists live in ./platform.
 function findVpn() {
-  for (const [envVar, tail] of VPN_CANDIDATES) {
-    const base = process.env[envVar];
-    if (!base) continue;
-    const full = path.join(base, tail);
-    try { if (fs.statSync(full).isFile()) return full; } catch {}
-  }
-  return '';
+  return firstExisting(vpnCandidates());
 }
 
 const DEFAULTS = {

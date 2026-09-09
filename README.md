@@ -352,6 +352,24 @@ bridge to `veil://` pages, and the main process independently checks the
 sender's URL on every privileged IPC channel. A web page that got hold of the
 bridge still could not read your settings.
 
+## Platforms
+
+Windows and macOS on Apple Silicon. The differences between them - where
+Tunnel VPN installs itself, what its processes are called, which Tor expert
+bundle to fetch, where wstunnel lives - are collected in
+`src/main/platform.js` rather than scattered as `process.platform` checks, so
+the modules that use them read the same on both.
+
+What differs in practice:
+
+- **Tunnel VPN** works on both; the macOS app is the same design (a supervisor
+  holds one elevated session and writes `session.log`), so Veil tracks it the
+  same way. Only the paths and process names change.
+- **Tor** downloads the `macos-aarch64` expert bundle on Apple Silicon.
+- **Signing** is a harder requirement on macOS: an unsigned build is refused
+  outright rather than warned about, and auto-updates will not install. See
+  [RELEASING.md](RELEASING.md).
+
 ## Packaging
 
 ```bash

@@ -4,17 +4,23 @@ const path = require('node:path');
 const os = require('node:os');
 const { spawn, execFile } = require('node:child_process');
 const { shell } = require('electron');
+const { MAC, VPN_CTRL_DIR, VPN_PROCESS_MARKS, PROCESS_LIST_CMD } = require('./platform');
 
 /**
  * Integration with the Tunnel VPN app that already lives on this machine.
  *
- * Tunnel VPN owns its own elevated session (Connect raises one UAC prompt), so
- * Veil deliberately does not try to drive the tunnel itself. It launches the
- * app, reports honest status by looking at which processes are actually
- * running, and surfaces the log directory.
+ * Tunnel VPN owns its own elevated session (Connect raises one prompt - UAC on
+ * Windows, an administrator password on macOS), so Veil deliberately does not
+ * try to drive the tunnel itself. It launches the app, reports honest status
+ * by looking at which processes are actually running, and surfaces the log
+ * directory.
+ *
+ * Both builds of Tunnel VPN behave the same way from here: a supervisor holds
+ * the elevated session, writes session.log, and watches for a stop-file. Only
+ * the paths and the process names differ, and those live in ./platform.
  */
 
-const CTRL_DIR = path.join(process.env.LOCALAPPDATA || os.homedir(), 'TunnelVPN', 'ctrl');
+const CTRL_DIR = VPN_CTRL_DIR;
 
 const STATES = {
   MISSING: 'missing',        // exe not found at the configured path
@@ -24,9 +30,11 @@ const STATES = {
   CONNECTED: 'connected'     // openvpn running
 };
 
-function tasklist() {
+/** Everything currently running, lower-cased, as one blob to search. */
+function processList() {
+  const [exe, args] = PROCESS_LIST_CMD;
   return new Promise(resolve => {
-    execFile('tasklist', ['/NH', '/FO', 'CSV'], { windowsHide: true, maxBuffer: 8 * 1024 * 1024 },
+    execFile(exe, args, { windowsHide: true, maxBuffer: 8 * 1024 * 1024 },
       (err, stdout) => resolve(err ? '' : String(stdout).toLowerCase()));
   });
 }
@@ -64,11 +72,11 @@ class Vpn {
         this.last = { state: STATES.MISSING, detail: 'Tunnel VPN not found at the configured path', at: Date.now() };
         return this.last;
       }
-      const ps = await tasklist();
+      const ps = await processList();
       const has = name => ps.includes(name);
-      const app = has('tunnelvpn.exe');
-      const ovpn = has('openvpn.exe');
-      const wst = has('wstunnel.exe');
+      const app = has(VPN_PROCESS_MARKS.app);
+      const ovpn = has(VPN_PROCESS_MARKS.openvpn);
+      const wst = has(VPN_PROCESS_MARKS.wstunnel);
 
       let state = STATES.STOPPED;
       if (ovpn) state = STATES.CONNECTED;
@@ -95,12 +103,13 @@ class Vpn {
     }
     const exe = this.exePath();
     try {
-      const child = spawn(exe, [], {
-        cwd: path.dirname(exe),
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: false
-      });
+      // On macOS the path names an .app bundle, which is a directory: it has
+      // to be handed to `open` rather than executed. `open` also brings an
+      // already-running copy to the front, which is what the user means by
+      // clicking this a second time.
+      const child = MAC
+        ? spawn('open', ['-a', exe], { detached: true, stdio: 'ignore' })
+        : spawn(exe, [], { cwd: path.dirname(exe), detached: true, stdio: 'ignore', windowsHide: false });
       child.unref();
       return { ok: true };
     } catch (e) {
