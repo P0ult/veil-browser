@@ -68,7 +68,8 @@ contextBridge.exposeInMainWorld('veil', {
       findResult: 'veil:find-result',
       focusOmnibox: 'veil:focus-omnibox',
       openFind: 'veil:open-find',
-      findNext: 'veil:find-next'
+      findNext: 'veil:find-next',
+      chromeHover: 'veil:chrome-hover'
     };
     const channel = channels[event];
     if (!channel) return () => {};

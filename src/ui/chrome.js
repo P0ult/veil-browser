@@ -250,16 +250,19 @@ let peekTimer = null, peekRaf = 0, railW = RAIL_MIN;
 /* Hiding the chrome entirely.
  *
  * With "Hide the chrome" on, the toolbar and tabs slide out of the way and the
- * page has the window to itself. A sliver of chrome is deliberately left on
- * screen: it is what the pointer can find to bring the rest back, and with no
- * window buttons showing it is also the only thing left to drag the window by.
- * Six pixels is small enough to read as a border and big enough to hit.
+ * page has the whole window - no strip, no border, nothing left over.
+ *
+ * That means the chrome cannot be hovered while it is hidden: it is behind the
+ * page, and the page takes every mouse event. The main process watches the
+ * cursor instead and says when the pointer reaches the top or left edge, which
+ * is a band to aim at rather than a sliver to hunt for. The listeners below
+ * stay as well, for when the pointer is already on the exposed chrome.
  *
  * `reveal` runs 0 (hidden) to 1 (fully out), and every frame of it is reported
  * so the page slides in step - and, as with the rail, slides rather than
  * resizes, so no frame costs a document relayout.
  */
-const STRIP = 6;
+const STRIP = 0;
 const REVEAL_IN = 60, REVEAL_OUT = 260, REVEAL_MS = 190;
 let reveal = 1, revealWanted = 1, revealRaf = 0, revealTimer = null;
 let pinned = false;          // held open while the address bar has focus
@@ -306,6 +309,7 @@ function showChrome(on) {
 document.documentElement.addEventListener('mouseenter', () => showChrome(true));
 document.documentElement.addEventListener('mousemove', () => showChrome(true));
 document.documentElement.addEventListener('mouseleave', () => showChrome(false));
+veil.on('chromeHover', (near) => showChrome(!!near));
 
 function railFullWidth() {
   const a = (settings && settings.appearance) || {};

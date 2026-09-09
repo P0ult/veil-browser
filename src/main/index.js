@@ -1,7 +1,7 @@
 'use strict';
 const path = require('node:path');
 const fs = require('node:fs');
-const { app, BaseWindow, WebContentsView, session, ipcMain, Menu, dialog, shell, clipboard, nativeTheme, webContents, safeStorage } = require('electron');
+const { app, BaseWindow, WebContentsView, session, ipcMain, Menu, dialog, shell, clipboard, nativeTheme, webContents, safeStorage, screen } = require('electron');
 
 const { Settings } = require('./settings');
 const { AdBlock } = require('./adblock');
@@ -11,6 +11,7 @@ const { Vpn } = require('./vpn');
 const { Tunnel } = require('./tunnel');
 const { Vault } = require('./vault');
 const { VPN_PICKER } = require('./platform');
+const { reachingForChrome } = require('./hover');
 const { Updater } = require('./updater');
 const crypto = require('node:crypto');
 const { TabManager } = require('./tabs');
@@ -77,6 +78,47 @@ function broadcast(channel, payload) {
 
 function broadcastSettings() {
   broadcast('veil:settings', settings.all());
+  watchHover(settings.get('appearance.autoHideChrome', false));
+}
+
+/* ------------------------------------------------- reaching for the chrome
+
+   When the chrome is hidden it is behind the page, so it cannot be hovered:
+   the page has every pixel and takes every mouse event. The only thing that
+   still knows where the pointer is, is the OS.
+
+   So while hiding is on, the cursor is polled and the chrome is told when the
+   pointer reaches for it. That buys a band along the top *and* the left edge
+   rather than a sliver of chrome the user has to hunt for, and it works the
+   same whether the tabs are on top or down the side.                        */
+
+const HOVER_BAND = 26;      // how near an edge counts as reaching
+const HOVER_POLL = 80;      // ms; imperceptible, and far cheaper than it sounds
+let hoverTimer = null;
+let hoverState = null;
+
+function cursorNearChrome() {
+  if (!win || win.isDestroyed() || win.isMinimized() || !win.isVisible()) return false;
+  let p, b;
+  try { p = screen.getCursorScreenPoint(); b = win.getContentBounds(); } catch { return false; }
+  return reachingForChrome({
+    x: p.x - b.x, y: p.y - b.y,
+    width: b.width, height: b.height,
+    top: chromeLayout.top, left: chromeLayout.left,
+    band: HOVER_BAND
+  });
+}
+
+function watchHover(on) {
+  if (hoverTimer) { clearInterval(hoverTimer); hoverTimer = null; }
+  hoverState = null;
+  if (!on) return;
+  hoverTimer = setInterval(() => {
+    const near = cursorNearChrome();
+    if (near === hoverState) return;      // only speak when the answer changes
+    hoverState = near;
+    sendChrome('veil:chrome-hover', near);
+  }, HOVER_POLL);
 }
 
 function pushState() {
@@ -442,11 +484,17 @@ function wireIpc() {
     e.sender.send('veil:tabs', tabs.state());
     e.sender.send('veil:window', { maximized: win.isMaximized() });
     pollVpn();
+    // The chrome may already be set to hide, in which case nothing has asked
+    // for the cursor watch yet - broadcastSettings() only runs on a change.
+    watchHover(settings.get('appearance.autoHideChrome', false));
   }));
 
   ipcMain.on('ui:layout', guardOn((e, l) => {
     const mode = l && l.mode === 'side' ? 'side' : 'top';
-    const top = Math.max(0, Math.round(Number(l && l.top) || CHROME_MIN_H));
+    // Zero is a real answer here - it is what a fully hidden chrome reports -
+    // so this cannot fall back on `|| CHROME_MIN_H`.
+    const rawTop = Number(l && l.top);
+    const top = Number.isFinite(rawTop) ? Math.max(0, Math.round(rawTop)) : CHROME_MIN_H;
     const left = mode === 'side' ? Math.max(0, Math.round(Number(l && l.left) || 0)) : 0;
     // Non-null only while something is sliding, and then it is the inset the
     // page's current size was calculated from. See TabManager.contentBounds().
