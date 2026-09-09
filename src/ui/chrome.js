@@ -224,10 +224,38 @@ els.reload.addEventListener('click', (e) => {
 });
 $('new-tab').addEventListener('click', () => veil.tab.open());
 $('side-new-tab').addEventListener('click', () => veil.tab.open());
-$('side-collapse').addEventListener('click', () => {
-  const collapsed = els.chrome.dataset.collapsed === '1';
-  veil.setAppearance({ sidebarCollapsed: !collapsed });
-});
+
+/* Peeking at a collapsed rail.
+ *
+ * Hovering widens the rail back to the chosen width so titles are readable,
+ * and leaving it narrows it again. There is no button for this any more: a
+ * collapsed rail used to hide the very control that would have expanded it,
+ * which left no way back except the settings page.
+ *
+ * The delays matter. The page is laid out against the rail, so a change of
+ * width moves the page; without them, dragging the pointer diagonally across
+ * the rail on the way somewhere else would shove the page sideways and back.
+ */
+const PEEK_IN = 180, PEEK_OUT = 140;
+let peekTimer = null;
+
+function peek(on) {
+  clearTimeout(peekTimer);
+  peekTimer = setTimeout(() => {
+    const was = els.chrome.dataset.peek === '1';
+    if (els.chrome.dataset.collapsed !== '1') delete els.chrome.dataset.peek;
+    else if (on) els.chrome.dataset.peek = '1';
+    else delete els.chrome.dataset.peek;
+    // Report it rather than waiting for the resize observer to notice. The
+    // page is a separate view positioned by the main process against these
+    // insets; if it is never told, the wider rail is simply drawn underneath
+    // the page and the user sees nothing happen at all.
+    if (was !== (els.chrome.dataset.peek === '1')) reportLayout();
+  }, on ? PEEK_IN : PEEK_OUT);
+}
+
+els.sidebar.addEventListener('mouseenter', () => peek(true));
+els.sidebar.addEventListener('mouseleave', () => peek(false));
 $('menu').addEventListener('click', () => veil.menu());
 els.shield.addEventListener('click', () => veil.shield());
 
@@ -398,8 +426,9 @@ function applyLayout(s) {
 
   els.chrome.dataset.mode = mode;
   els.chrome.dataset.collapsed = collapsed ? '1' : '0';
+  if (!collapsed) delete els.chrome.dataset.peek;   // nothing to peek at when it is already open
   document.documentElement.style.setProperty(
-    '--sidebar-w', Math.max(150, Math.min(420, Number(a.sidebarWidth) || 220)) + 'px');
+    '--sidebar-full', Math.max(150, Math.min(420, Number(a.sidebarWidth) || 220)) + 'px');
 
   const tabHost = mode === 'side' ? els.sideTabs : els.topTabs;
   if (els.tabs.parentElement !== tabHost) tabHost.append(els.tabs);

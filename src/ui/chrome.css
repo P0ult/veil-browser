@@ -339,12 +339,17 @@ html, body { overflow: hidden; background: transparent; }
    left rail, so switching layouts never rebuilds them and never disturbs a
    click in progress.                                                        */
 
-:root { --sidebar-w: 220px; }
+/* --sidebar-full is the width the user chose; --sidebar-w is what the rail is
+   actually showing right now, which is narrower while it is collapsed. */
+:root { --sidebar-full: 220px; --sidebar-w: var(--sidebar-full); }
 
+/* Sizes to the tabs it holds. It must NOT flex to fill: .drag-space after the
+   new-tab button is what takes up the slack, and a growing host here pushes
+   the + away from the last tab and out to the right of the window. */
 .tabs-host {
   display: flex;
   align-items: flex-end;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   -webkit-app-region: no-drag;
 }
@@ -377,13 +382,6 @@ html, body { overflow: hidden; background: transparent; }
   color: var(--text);
   overflow: hidden;
   white-space: nowrap;
-}
-#side-collapse {
-  width: 26px; height: 26px;
-  display: grid;
-  place-items: center;
-  flex: none;
-  -webkit-app-region: no-drag;
 }
 
 .side-tabs {
@@ -441,13 +439,24 @@ html, body { overflow: hidden; background: transparent; }
 #chrome[data-mode="side"] .tab.active .close { opacity: 0.7; }
 
 /* Collapsed: icons only, and the tab title and chrome text get out of the way. */
+/* Collapsed: icons only, and the rail widens again while the pointer is on it
+   (see peek handling in chrome.js) so a tab can be identified by its title
+   without clicking anything. The page is inset against the rail, so widening
+   it does move the page - there is no way to float the rail over the page,
+   because the page's own view is drawn on top of the chrome. */
 #chrome[data-collapsed="1"] { --sidebar-w: 52px; }
+#chrome[data-collapsed="1"][data-peek="1"] { --sidebar-w: var(--sidebar-full); }
+#chrome[data-collapsed="1"][data-peek="1"] .side-name,
+#chrome[data-collapsed="1"][data-peek="1"] .side-add span,
+#chrome[data-collapsed="1"][data-peek="1"] .tab .title { display: revert; }
+#chrome[data-collapsed="1"][data-peek="1"] .side-head { padding: 0 10px 0 12px; justify-content: flex-start; }
+#chrome[data-collapsed="1"][data-peek="1"] .tab,
+#chrome[data-collapsed="1"][data-peek="1"] .side-add { justify-content: flex-start; padding: 0 8px; }
 #chrome[data-collapsed="1"] .side-name,
 #chrome[data-collapsed="1"] .side-add span,
 #chrome[data-collapsed="1"] .tab .title,
 #chrome[data-collapsed="1"] .tab .close { display: none; }
 #chrome[data-collapsed="1"] .side-head { padding: 0 8px; justify-content: center; }
-#chrome[data-collapsed="1"] #side-collapse { display: none; }
 #chrome[data-collapsed="1"] .tab { justify-content: center; padding: 0; }
 #chrome[data-collapsed="1"] .side-add { justify-content: center; padding: 0; }
 
