@@ -454,13 +454,14 @@ if (!isInternal && isWeb) {
 /* ------------------------------------------------------------- internal API */
 
 if (isInternal) {
-  const listeners = { settings: new Set(), vpn: new Set(), tunnel: new Set(), update: new Set() };
+  const listeners = { settings: new Set(), vpn: new Set(), tunnel: new Set(), update: new Set(), downloads: new Set() };
   const relay = (channel, key) =>
     ipcRenderer.on(channel, (_e, data) => listeners[key].forEach(fn => { try { fn(data); } catch {} }));
   relay('veil:settings', 'settings');
   relay('veil:vpn', 'vpn');
   relay('veil:tunnel', 'tunnel');
   relay('veil:update', 'update');
+  relay('veil:downloads', 'downloads');
 
   contextBridge.exposeInMainWorld('veil', {
     internal: true,
@@ -518,6 +519,14 @@ if (isInternal) {
       check: () => ipcRenderer.invoke('update:check'),
       download: () => ipcRenderer.invoke('update:download'),
       install: () => ipcRenderer.invoke('update:install')
+    },
+
+    onDownloads: (fn) => { listeners.downloads.add(fn); return () => listeners.downloads.delete(fn); },
+
+    downloads: {
+      list: () => ipcRenderer.invoke('downloads:list'),
+      clear: () => ipcRenderer.invoke('downloads:clear'),
+      reveal: (path) => ipcRenderer.invoke('downloads:reveal', path)
     },
 
     appInfo: () => ipcRenderer.invoke('app:info'),

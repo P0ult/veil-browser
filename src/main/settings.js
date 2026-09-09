@@ -34,11 +34,12 @@ const DEFAULTS = {
     sidebarWidth: 220,
     sidebarCollapsed: false,
     autoHideChrome: false,         // the whole chrome slides away until hovered
+    minimalNewTab: false,          // a new tab is a search box over the page you were on
     chromeOpacity: 0.72,
     greeting: '',
     showClock: true,
     showStats: true,
-    showShortcuts: true
+    showShortcuts: false           // they live in the tab rail now; this is the start page's copy
   },
   search: {
     engine: 'veil',                // veil | duckduckgo | mojeek | startpage | brave | wikipedia | custom

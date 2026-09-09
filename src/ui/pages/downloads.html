@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data:">
+<title>Downloads</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"/><path d="M8 10.5l4 4 4-4"/><path d="M5 18.5h14"/></symbol>
+</svg>
+
+<div class="wrap" style="padding:56px 0 80px">
+  <div class="mark" style="margin-bottom:10px">
+    <svg><use href="#i-download"/></svg>
+    <span class="name">Downloads</span>
+  </div>
+  <p class="sub" style="margin-bottom:30px">This session only. Closing Veil forgets the list — the files stay where you saved them.</p>
+
+  <section class="card">
+    <div id="list"></div>
+    <div class="row" id="empty">
+      <div class="info">
+        <label>Nothing yet</label>
+        <small>Files you download while Veil is open appear here. Veil always asks where to save, so nothing lands on disk without you choosing.</small>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="clear-card" hidden>
+    <div class="row">
+      <div class="info"><label>Forget this list</label><small>Removes the entries. The downloaded files themselves are untouched.</small></div>
+      <div class="ctl"><button class="btn" id="clear">Clear</button></div>
+    </div>
+  </section>
+</div>
+
+<script src="theme.js"></script>
+<script src="downloads.js"></script>
+</body>
+</html>

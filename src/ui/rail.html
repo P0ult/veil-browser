@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data:; font-src veil:">
+<title>Veil tabs</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="rail.css">
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-veil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.3-2.9 7.9-7 9.5-4.1-1.6-7-5.2-7-9.5V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6L18 18M18 6l-1.4 1.4M7.4 16.6L6 18"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"/><path d="M8 10.5l4 4 4-4"/><path d="M5 18.5h14"/></symbol>
+</svg>
+
+<div id="rail" data-collapsed="0">
+
+  <div class="head">
+    <div class="brand" title="Veil"><svg class="icon"><use href="#i-veil"/></svg></div>
+    <span class="name">Veil</span>
+  </div>
+
+  <!-- Shortcuts live here rather than on the start page: they are reachable
+       from any page this way, not only from a blank one. -->
+  <div class="shortcuts" id="shortcuts"></div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <!-- Directly under the tabs, where the list ends - not pinned to the floor. -->
+  <button class="add" id="new-tab" title="New tab (Ctrl+T)">
+    <svg class="icon"><use href="#i-plus"/></svg><span>New tab</span>
+  </button>
+
+  <div class="spacer"></div>
+
+  <div class="foot">
+    <button id="go-downloads" title="Downloads">
+      <svg class="icon"><use href="#i-download"/></svg><span>Downloads</span>
+    </button>
+    <button id="go-settings" title="Settings">
+      <svg class="icon"><use href="#i-gear"/></svg><span>Settings</span>
+    </button>
+  </div>
+
+</div>
+
+<script src="theme.js"></script>
+<script src="rail.js"></script>
+</body>
+</html>

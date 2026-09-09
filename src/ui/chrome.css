@@ -9,20 +9,10 @@ html, body { overflow: hidden; background: transparent; }
   border-bottom: 1px solid var(--border);
   user-select: none;
 }
-#chrome[data-mode="side"] {
-  flex-direction: row;
-  height: 100vh;
-  border-bottom: 0;
-}
-#chrome[data-mode="side"] .main {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  align-self: flex-start;
-}
-#chrome[data-mode="top"] .sidebar { display: none; }
 #chrome[data-mode="side"] .tabstrip { display: none; }
+
+/* Floating over the page needs an edge that reads against any background. */
+#chrome[data-float="1"] { box-shadow: 0 6px 26px rgba(0, 0, 0, 0.45); }
 
 /* ------------------------------------------------------------- tab strip */
 
@@ -335,17 +325,10 @@ html, body { overflow: hidden; background: transparent; }
 
 /* ------------------------------------------------------------- vertical tabs
 
-   The same tab elements are re-parented between the horizontal strip and the
-   left rail, so switching layouts never rebuilds them and never disturbs a
-   click in progress.                                                        */
+   The rail itself is a separate view (rail.html / rail.css) so that it can
+   float over the page. All that is left here is the horizontal strip, which
+   is simply not shown when the tabs are vertical.                          */
 
-/* --sidebar-full is the width the user chose; --sidebar-w is what the rail is
-   actually showing right now, which is narrower while it is collapsed. */
-:root { --sidebar-full: 220px; --sidebar-w: var(--sidebar-full); }
-
-/* Sizes to the tabs it holds. It must NOT flex to fill: .drag-space after the
-   new-tab button is what takes up the slack, and a growing host here pushes
-   the + away from the last tab and out to the right of the window. */
 .tabs-host {
   display: flex;
   align-items: flex-end;
@@ -353,114 +336,6 @@ html, body { overflow: hidden; background: transparent; }
   min-width: 0;
   -webkit-app-region: no-drag;
 }
-
-.sidebar {
-  width: var(--sidebar-w);
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  -webkit-app-region: drag;
-}
-
-.side-head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  height: 40px;
-  padding: 0 8px 0 12px;
-  flex: none;
-}
-.side-head .brand { margin: 0; width: 20px; height: 20px; }
-.side-name {
-  flex: 1;
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text);
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.side-tabs {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 2px 6px;
-  -webkit-app-region: no-drag;
-}
-
-.side-add {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  height: 32px;
-  margin: 4px 6px 8px;
-  padding: 0 10px;
-  flex: none;
-  border-radius: 8px;
-  font-size: 12.5px;
-  color: var(--text-3);
-  -webkit-app-region: no-drag;
-}
-.side-add .icon { width: 14px; height: 14px; flex: none; }
-
-/* The tab list itself: a row across the top, a column down the side. */
-#chrome[data-mode="side"] .tabs {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
-  width: 100%;
-}
-
-#chrome[data-mode="side"] .tab {
-  height: 32px;
-  min-width: 0;
-  max-width: none;
-  flex: none;
-  border-radius: 8px;
-  padding: 0 5px 0 9px;
-  box-shadow: none;
-}
-#chrome[data-mode="side"] .tab.active {
-  background: var(--surface-3);
-  box-shadow: none;
-}
-/* The active marker runs down the left edge rather than across the top. */
-#chrome[data-mode="side"] .tab.active::after {
-  left: 0; top: 7px; bottom: 7px; right: auto;
-  width: 2px; height: auto;
-}
-#chrome[data-mode="side"] .tab .close { opacity: 0; }
-#chrome[data-mode="side"] .tab:hover .close,
-#chrome[data-mode="side"] .tab.active .close { opacity: 0.7; }
-
-/* Collapsed: icons only, and the tab title and chrome text get out of the way. */
-/* Collapsed: icons only, and the rail widens again while the pointer is on it
-   (see peek handling in chrome.js) so a tab can be identified by its title
-   without clicking anything. The page is inset against the rail, so widening
-   it does move the page - there is no way to float the rail over the page,
-   because the page's own view is drawn on top of the chrome. */
-#chrome[data-collapsed="1"] { --sidebar-w: 52px; }
-/* While peeking, --sidebar-w is animated frame by frame as an inline style on
-   #chrome, so there is no width rule here to fight with it. */
-#chrome[data-collapsed="1"][data-peek="1"] .side-name,
-#chrome[data-collapsed="1"][data-peek="1"] .side-add span,
-#chrome[data-collapsed="1"][data-peek="1"] .tab .title,
-#chrome[data-collapsed="1"][data-peek="1"] .tab .close { display: revert; }
-#chrome[data-collapsed="1"][data-peek="1"] .side-head { padding: 0 10px 0 12px; justify-content: flex-start; }
-#chrome[data-collapsed="1"][data-peek="1"] .tab,
-#chrome[data-collapsed="1"][data-peek="1"] .side-add { justify-content: flex-start; padding: 0 8px; }
-#chrome[data-collapsed="1"] .side-name,
-#chrome[data-collapsed="1"] .side-add span,
-#chrome[data-collapsed="1"] .tab .title,
-#chrome[data-collapsed="1"] .tab .close { display: none; }
-#chrome[data-collapsed="1"] .side-head { padding: 0 8px; justify-content: center; }
-#chrome[data-collapsed="1"] .tab { justify-content: center; padding: 0; }
-#chrome[data-collapsed="1"] .side-add { justify-content: center; padding: 0; }
 
 /* In vertical mode the toolbar carries the window buttons, and its own gaps
    become the draggable area, since the tab strip that used to drag is gone. */
@@ -474,5 +349,39 @@ html, body { overflow: hidden; background: transparent; }
 #chrome[data-mode="side"] .wincontrols { align-self: stretch; margin-left: 4px; }
 #chrome[data-mode="side"] .topbar { border-bottom: 1px solid var(--border); }
 
-:root[data-density="compact"] .side-head { height: 34px; }
-:root[data-density="compact"] #chrome[data-mode="side"] .tab { height: 28px; }
+/* ------------------------------------------------------ the minimal new tab
+
+   The same document, drawn as a single search box in the middle of the
+   window with the page you were on still visible behind it. Everything that
+   belongs to a browser frame is simply not shown.                          */
+
+#chrome[data-chrome-mode="centre"] {
+  background: transparent;
+  border-bottom: 0;
+  height: 100%;
+}
+#chrome[data-chrome-mode="centre"] .tabstrip,
+#chrome[data-chrome-mode="centre"] .wincontrols,
+#chrome[data-chrome-mode="centre"] .shelf,
+#chrome[data-chrome-mode="centre"] #nav-back,
+#chrome[data-chrome-mode="centre"] #nav-fwd,
+#chrome[data-chrome-mode="centre"] #nav-reload,
+#chrome[data-chrome-mode="centre"] #nav-home,
+#chrome[data-chrome-mode="centre"] #menu,
+#chrome[data-chrome-mode="centre"] #tunnel,
+#chrome[data-chrome-mode="centre"] #shield { display: none; }
+
+#chrome[data-chrome-mode="centre"] .topbar { border-bottom: 0; }
+#chrome[data-chrome-mode="centre"] .toolbar {
+  height: 100%;
+  padding: 0;
+}
+#chrome[data-chrome-mode="centre"] .omnibox {
+  height: 54px;
+  border-radius: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  padding: 0 16px;
+}
+#chrome[data-chrome-mode="centre"] .omnibox input { font-size: 16px; }

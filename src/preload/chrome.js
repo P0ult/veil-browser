@@ -5,6 +5,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('veil', {
   ready: () => ipcRenderer.send('chrome:ready'),
   reportLayout: (layout) => ipcRenderer.send('ui:layout', layout),
+  reportRail: (rail) => ipcRenderer.send('ui:rail', rail),
+  closeCentre: () => ipcRenderer.send('ui:centre-close'),
   setAppearance: (patch) => ipcRenderer.invoke('settings:set', { appearance: patch }),
 
   window: {
@@ -69,7 +71,10 @@ contextBridge.exposeInMainWorld('veil', {
       focusOmnibox: 'veil:focus-omnibox',
       openFind: 'veil:open-find',
       findNext: 'veil:find-next',
-      chromeHover: 'veil:chrome-hover'
+      chromeHover: 'veil:chrome-hover',
+      railHover: 'veil:rail-hover',
+      downloads: 'veil:downloads',
+      chromeMode: 'veil:chrome-mode'
     };
     const channel = channels[event];
     if (!channel) return () => {};

@@ -11,7 +11,8 @@ const { Vpn } = require('./vpn');
 const { Tunnel } = require('./tunnel');
 const { Vault } = require('./vault');
 const { VPN_PICKER } = require('./platform');
-const { reachingForChrome } = require('./hover');
+const { edgesReached } = require('./hover');
+const { computeLayout } = require('./layout');
 const { Updater } = require('./updater');
 const crypto = require('node:crypto');
 const { TabManager } = require('./tabs');
@@ -50,8 +51,18 @@ const DEV = process.argv.includes('--dev');
 const CHROME_MIN_H = 78;
 
 let settings, adblock, netPrivacy, searchEngine, vpn, tunnel, vault, updater, tabs;
-let win = null, chromeView = null, browseSession = null, searchSession = null;
-let chromeLayout = { mode: 'top', top: CHROME_MIN_H, left: 0 };
+let win = null, chromeView = null, railView = null, browseSession = null, searchSession = null;
+
+/* The chrome's shape and, when it floats, how much of it is out.
+ *
+ * toolbarShown and railShown run 0 (tucked away off-screen) to 1 (fully out)
+ * and are animated here rather than in the renderers, because it is the view
+ * rectangles that move - the documents inside them never change size. */
+let chromeLayout = { mode: 'top', toolbarH: CHROME_MIN_H, railW: 0 };
+let toolbarShown = 1, railShown = 1;
+let holdToolbar = false;         // the address bar has focus; do not tuck it away
+let chromeMode = 'bar';          // 'bar' along the top, or 'centre' for a minimal new tab
+let downloads = [];              // this run only - nothing about them is written to disk
 
 // Regenerated every launch, held only in memory: restarting Veil changes every
 // fingerprinting answer it gives.
@@ -61,9 +72,27 @@ let emitTimer = null;
 /* ------------------------------------------------------------------ helpers */
 
 function sendChrome(channel, payload) {
-  if (chromeView && !chromeView.webContents.isDestroyed()) {
-    chromeView.webContents.send(channel, payload);
+  // The toolbar and the tab rail are separate views but one piece of UI.
+  for (const view of [chromeView, railView]) {
+    if (view && !view.webContents.isDestroyed()) {
+      try { view.webContents.send(channel, payload); } catch {}
+    }
   }
+}
+
+/**
+ * Remember a download for as long as the browser is open.
+ *
+ * In memory only, and never written anywhere: a list of what someone has
+ * downloaded is exactly the sort of record this browser exists not to keep.
+ * Closing Veil forgets it, which is the intended behaviour rather than a
+ * missing feature.
+ */
+function noteDownload(entry) {
+  downloads.unshift(entry);
+  if (downloads.length > 100) downloads.length = 100;
+  sendChrome('veil:downloads', downloads);
+  broadcast('veil:downloads', downloads);
 }
 
 /** Send to the chrome strip and to every veil:// page that is open. */
@@ -97,14 +126,16 @@ const HOVER_POLL = 80;      // ms; imperceptible, and far cheaper than it sounds
 let hoverTimer = null;
 let hoverState = null;
 
-function cursorNearChrome() {
-  if (!win || win.isDestroyed() || win.isMinimized() || !win.isVisible()) return false;
+function cursorEdges() {
+  if (!win || win.isDestroyed() || win.isMinimized() || !win.isVisible()) return { top: false, left: false };
   let p, b;
-  try { p = screen.getCursorScreenPoint(); b = win.getContentBounds(); } catch { return false; }
-  return reachingForChrome({
+  try { p = screen.getCursorScreenPoint(); b = win.getContentBounds(); } catch { return { top: false, left: false }; }
+  return edgesReached({
     x: p.x - b.x, y: p.y - b.y,
     width: b.width, height: b.height,
-    top: chromeLayout.top, left: chromeLayout.left,
+    // Once a part is out, resting anywhere on it holds it out.
+    top: Math.round(chromeLayout.toolbarH * toolbarShown),
+    left: chromeLayout.mode === 'side' ? Math.round(chromeLayout.railW * railShown) : 0,
     band: HOVER_BAND
   });
 }
@@ -112,12 +143,22 @@ function cursorNearChrome() {
 function watchHover(on) {
   if (hoverTimer) { clearInterval(hoverTimer); hoverTimer = null; }
   hoverState = null;
-  if (!on) return;
+  if (!on) {
+    // Docked again: put everything back where it belongs.
+    wantToolbar = wantRail = 1;
+    toolbarShown = railShown = 1;
+    relayout();
+    return;
+  }
+  wantToolbar = wantRail = 0;
+  toolbarShown = railShown = 0;
+  relayout();
   hoverTimer = setInterval(() => {
-    const near = cursorNearChrome();
-    if (near === hoverState) return;      // only speak when the answer changes
-    hoverState = near;
-    sendChrome('veil:chrome-hover', near);
+    const e = cursorEdges();
+    // The toolbar and the rail are separate things that open separately: the
+    // top edge asks for one, the left edge for the other.
+    showChrome('toolbar', e.top);
+    if (chromeLayout.mode === 'side') showChrome('rail', e.left);
   }, HOVER_POLL);
 }
 
@@ -126,21 +167,127 @@ function pushState() {
   emitTimer = setTimeout(() => sendChrome('veil:tabs', tabs.state()), 16);
 }
 
+function floating() {
+  return !!settings.get('appearance.autoHideChrome', false);
+}
+
+/** The centred search box of a minimal new tab, in window coordinates. */
+function centreBox(w, h) {
+  const width = Math.max(320, Math.min(620, Math.round(w * 0.52)));
+  return { x: Math.round((w - width) / 2), y: Math.round(h * 0.30), width, height: 66 };
+}
+
 function relayout() {
   if (!win) return;
   const [w, h] = win.getContentSize();
+  const float = floating();
+
+  const L = computeLayout({
+    width: w, height: h,
+    mode: chromeLayout.mode,
+    toolbarH: chromeLayout.toolbarH,
+    railW: chromeLayout.railW,
+    floating: float,
+    toolbarShown: float ? toolbarShown : 1,
+    railShown: float ? railShown : 1
+  });
+
   if (chromeView) {
-    // With a left rail the chrome is an L-shape, which one rectangle cannot
-    // be, so it takes the whole window and the page view sits on top of the
-    // part it should not show through.
-    chromeView.setBounds(chromeLayout.mode === 'side'
-      ? { x: 0, y: 0, width: w, height: h }
-      : { x: 0, y: 0, width: w, height: chromeLayout.top });
+    chromeView.setBounds(chromeMode === 'centre' ? centreBox(w, h) : L.chrome);
+  }
+  if (railView) {
+    // An absent rail is parked at zero size rather than removed, so that
+    // switching tab layouts does not tear down and rebuild its document.
+    railView.setBounds(L.rail || { x: 0, y: 0, width: 0, height: 0 });
   }
   if (tabs) {
-    tabs.inset = { top: chromeLayout.top, left: chromeLayout.left };
+    tabs.inset = { top: L.page.y, left: L.page.x };
+    tabs.peekBase = null;              // nothing slides the page any more
     tabs.layout();
   }
+}
+
+/**
+ * Keep the chrome above the page.
+ *
+ * Views stack in the order they are added and TabManager adds a page view
+ * whenever one is created or activated, so the chrome has to be lifted back on
+ * top afterwards. Floating depends on it; docked does not care, since then
+ * nothing overlaps.
+ */
+function raiseChrome() {
+  if (!win || win.isDestroyed()) return;
+  for (const view of [railView, chromeView]) {
+    if (view) { try { win.contentView.addChildView(view); } catch {} }
+  }
+}
+
+/* ---------------------------------------------------- sliding the chrome
+
+   One timer moves both, because they are two rectangles rather than two
+   documents: nothing here relayouts a page, so a frame costs almost nothing.
+   The page is untouched throughout - that is what floating buys.           */
+
+const SLIDE_MS = 190;
+let slideTimer = null;
+let wantToolbar = 1, wantRail = 1;
+
+function slideChrome() {
+  if (slideTimer) return;
+  const t0 = Date.now();
+  const fromToolbar = toolbarShown, fromRail = railShown;
+  slideTimer = setInterval(() => {
+    const p = Math.min(1, (Date.now() - t0) / SLIDE_MS);
+    const eased = 1 - Math.pow(1 - p, 3);
+    toolbarShown = fromToolbar + (wantToolbar - fromToolbar) * eased;
+    railShown = fromRail + (wantRail - fromRail) * eased;
+    relayout();
+    if (p >= 1) { clearInterval(slideTimer); slideTimer = null; }
+  }, 16);
+}
+
+function showChrome(part, on) {
+  const want = on ? 1 : 0;
+  if (part === 'toolbar') {
+    if (holdToolbar && !on) return;
+    if (wantToolbar === want) return;
+    wantToolbar = want;
+  } else {
+    if (wantRail === want) return;
+    wantRail = want;
+  }
+  if (slideTimer) { clearInterval(slideTimer); slideTimer = null; }
+  slideChrome();
+}
+
+/* ------------------------------------------------- the minimal new tab
+
+   A search box in the middle of the window, with the page you were already
+   on left visible behind it. The toolbar view is reused rather than a fourth
+   view invented: it already owns the omnibox and everything the omnibox
+   knows, so all that changes is its rectangle and how it draws itself.     */
+
+function openCentreSearch() {
+  if (!chromeView) return;
+  chromeMode = 'centre';
+  holdToolbar = true;
+  wantToolbar = toolbarShown = 1;
+  sendChrome('veil:chrome-mode', 'centre');
+  relayout();
+  raiseChrome();
+  chromeView.webContents.focus();
+  sendChrome('veil:focus-omnibox');
+}
+
+function closeCentreSearch() {
+  if (chromeMode !== 'centre') return;
+  chromeMode = 'bar';
+  holdToolbar = false;
+  sendChrome('veil:chrome-mode', 'bar');
+  if (floating()) { wantToolbar = 0; toolbarShown = 0; }
+  relayout();
+  const t = tabs && tabs.active();
+  if (t) t.view.webContents.focus();
 }
 
 /** Turn whatever the user typed into a URL: address, bang, or search. */
@@ -188,7 +335,20 @@ function tabForSender(sender) {
 
 const actions = {
   newTab(url, background = false) {
+    // Minimal mode: rather than open a blank page, put a search box over
+    // whatever is already on screen. Nothing is created until it is used, so
+    // backing out with Escape leaves no empty tab behind.
+    if (!url && !background && settings.get('appearance.minimalNewTab', false)) {
+      openCentreSearch();
+      return;
+    }
     tabs.create(url || settings.get('browser.newTabPage', 'veil://home/'), { background });
+  },
+
+  /** The address bar has focus: do not tuck the toolbar away underneath it. */
+  holdChrome(on) {
+    holdToolbar = !!on;
+    if (holdToolbar) showChrome('toolbar', true);
   },
   closeTab(id) { tabs.close(id != null ? id : tabs.activeId); },
   openInternal(url) {
@@ -362,12 +522,15 @@ function createSessions() {
   browseSession.on('will-download', (event, item) => {
     item.setSaveDialogOptions({ title: 'Save file', defaultPath: item.getFilename() });
     const name = item.getFilename();
+    const size = item.getTotalBytes();
     item.once('done', (e, state) => {
       if (state === 'completed') {
+        noteDownload({ name, path: item.getSavePath(), size, at: Date.now(), state: 'completed' });
         sendChrome('veil:toast', { kind: 'ok', text: 'Downloaded ' + name, path: item.getSavePath() });
       } else if (state === 'cancelled') {
         sendChrome('veil:toast', { kind: 'info', text: 'Download cancelled' });
       } else {
+        noteDownload({ name, path: '', size, at: Date.now(), state: 'failed' });
         sendChrome('veil:toast', { kind: 'warn', text: 'Download failed: ' + name });
       }
     });
@@ -428,7 +591,7 @@ function createWindow() {
     }
   });
   win.contentView.addChildView(chromeView);
-  chromeView.setBounds({ x: 0, y: 0, width: 1320, height: chromeLayout.top });
+  chromeView.setBounds({ x: 0, y: 0, width: 1320, height: chromeLayout.toolbarH });
   chromeView.webContents.on('did-fail-load', (e, code, desc, url) => {
     console.error('[veil] chrome failed to load:', code, desc, url);
   });
@@ -443,12 +606,34 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  // The tab rail is a second view rather than part of the chrome document, so
+  // that it can float over the page instead of pushing it aside. It exists in
+  // both tab layouts and is simply given no size in the horizontal one.
+  railView = new WebContentsView({
+    webPreferences: {
+      session: browseSession,
+      preload: path.join(__dirname, '..', 'preload', 'chrome.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+      backgroundThrottling: false
+    }
+  });
+  win.contentView.addChildView(railView);
+  railView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+  if (DEV) railView.webContents.on('console-message', (e) => console.log('[rail]', e.message));
+  railView.webContents.loadURL('veil://rail/').catch((err) => {
+    console.error('[veil] rail loadURL rejected:', err.message);
+  });
+  railView.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
   tabs = new TabManager({
     win,
     settings,
     session: browseSession,
-    inset: { top: chromeLayout.top, left: chromeLayout.left },
-    onUpdate: () => pushState(),
+    inset: { top: chromeLayout.toolbarH, left: chromeLayout.railW },
+    onUpdate: () => { pushState(); raiseChrome(); },
     onContextMenu: (tab, params) => {
       pageContextMenu({ actions, settings, adblock, tabs }, tab, params).popup({ window: win });
     },
@@ -482,6 +667,8 @@ function wireIpc() {
     e.sender.send('veil:settings', settings.all());
     if (tunnel) e.sender.send('veil:tunnel', tunnel.status());
     e.sender.send('veil:tabs', tabs.state());
+    e.sender.send('veil:downloads', downloads);
+    e.sender.send('veil:chrome-mode', chromeMode);
     e.sender.send('veil:window', { maximized: win.isMaximized() });
     pollVpn();
     // The chrome may already be set to hide, in which case nothing has asked
@@ -490,24 +677,23 @@ function wireIpc() {
   }));
 
   ipcMain.on('ui:layout', guardOn((e, l) => {
+    // The chrome document reports how tall it wants to be; the rail reports
+    // its own width separately, on 'ui:rail'.
     const mode = l && l.mode === 'side' ? 'side' : 'top';
-    // Zero is a real answer here - it is what a fully hidden chrome reports -
-    // so this cannot fall back on `|| CHROME_MIN_H`.
-    const rawTop = Number(l && l.top);
-    const top = Number.isFinite(rawTop) ? Math.max(0, Math.round(rawTop)) : CHROME_MIN_H;
-    const left = mode === 'side' ? Math.max(0, Math.round(Number(l && l.left) || 0)) : 0;
-    // Non-null only while something is sliding, and then it is the inset the
-    // page's current size was calculated from. See TabManager.contentBounds().
-    const pb = l && l.peekBase;
-    const peekBase = (pb && typeof pb === 'object')
-      ? { top: Math.max(0, Math.round(Number(pb.top) || 0)),
-          left: Math.max(0, Math.round(Number(pb.left) || 0)) }
-      : null;
-    const current = tabs ? tabs.peekBase : null;
-    if (mode === chromeLayout.mode && top === chromeLayout.top && left === chromeLayout.left
-        && JSON.stringify(peekBase) === JSON.stringify(current)) return;
-    chromeLayout = { mode, top, left };
-    if (tabs) tabs.peekBase = peekBase;
+    const raw = Number(l && l.top);
+    const toolbarH = Number.isFinite(raw) ? Math.max(0, Math.round(raw)) : CHROME_MIN_H;
+    if (mode === chromeLayout.mode && toolbarH === chromeLayout.toolbarH) return;
+    chromeLayout = { mode, toolbarH, railW: chromeLayout.railW };
+    relayout();
+  }));
+
+  ipcMain.on('ui:centre-close', guardOn(() => closeCentreSearch()));
+
+  ipcMain.on('ui:rail', guardOn((e, r) => {
+    const raw = Number(r && r.width);
+    const railW = Number.isFinite(raw) ? Math.max(0, Math.min(600, Math.round(raw))) : 0;
+    if (railW === chromeLayout.railW) return;
+    chromeLayout = { mode: chromeLayout.mode, toolbarH: chromeLayout.toolbarH, railW };
     relayout();
   }));
 
@@ -715,6 +901,20 @@ function wireIpc() {
 
   ipcMain.handle('httpsonly:allow', guard((e, url) => netPrivacy.allowInsecure(url)));
 
+  ipcMain.handle('downloads:list', guard(() => downloads));
+  ipcMain.handle('downloads:clear', guard(() => {
+    downloads = [];
+    sendChrome('veil:downloads', downloads);
+    broadcast('veil:downloads', downloads);
+    return downloads;
+  }));
+  ipcMain.handle('downloads:reveal', guard((e, p) => {
+    // Only ever a path this process recorded itself, never one from a page.
+    if (typeof p !== 'string' || !downloads.some(d => d.path === p)) return false;
+    shell.showItemInFolder(p);
+    return true;
+  }));
+
   ipcMain.handle('update:status', guard(() => updater.status()));
   ipcMain.handle('update:check', guard(() => updater.check()));
   ipcMain.handle('update:download', guard(() => updater.download()));
@@ -897,7 +1097,16 @@ function wireVaultIpc() {
 
 /* -------------------------------------------------------------------- start */
 
-const gotLock = app.requestSingleInstanceLock();
+/*
+ * One instance per profile, rather than one instance per machine.
+ *
+ * The lock exists so that two copies cannot share - and corrupt - one profile
+ * directory. A run given its own --user-data-dir is not sharing anything, so
+ * holding it to the same rule only means a second profile silently refuses to
+ * start, with no window and no message to say why.
+ */
+const ownProfile = process.argv.some(a => a.startsWith('--user-data-dir'));
+const gotLock = ownProfile || app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {

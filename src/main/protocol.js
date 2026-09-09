@@ -9,7 +9,8 @@ const UI_DIR = path.join(__dirname, '..', 'ui');
 
 // Hosts that map to a page of the same name in src/ui/pages.
 const PAGES = new Set([
-  'home', 'search', 'settings', 'blocked', 'error', 'about', 'passwords', 'insecure'
+  'home', 'search', 'settings', 'blocked', 'error', 'about', 'passwords', 'insecure',
+  'downloads'
 ]);
 
 const MIME = {
@@ -97,6 +98,9 @@ async function serve(settings, request) {
     let file;
     if (host === 'chrome' && !ext) {
       file = path.join(UI_DIR, 'chrome.html');
+    } else if (host === 'rail' && !ext) {
+      // The vertical tab bar is its own view so it can float over the page.
+      file = path.join(UI_DIR, 'rail.html');
     } else if (ext && MIME[ext]) {
       file = path.join(PAGES_DIR, path.basename(u.pathname));
       if (!fs.existsSync(file)) file = path.join(UI_DIR, path.basename(u.pathname));

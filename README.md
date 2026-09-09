@@ -334,12 +334,15 @@ src/
     vpn.js         system Tunnel VPN launch and status
     protocol.js    the veil:// scheme
     menus.js       application, context and toolbar menus
+    layout.js      where the page, toolbar and tab rail views go
+    hover.js       which window edge the pointer is reaching for
     settings.js    the settings store
   preload/
     chrome.js      bridge for the browser chrome
     page.js        cosmetic filter + bridge for veil:// pages
   ui/
-    chrome.*       tab strip / vertical rail, and the toolbar
+    chrome.*       the horizontal tab strip and the toolbar
+    rail.*         the vertical tab bar, in a view of its own
     theme.*        shared tokens, applied live from settings
     pages/         home, search, passwords, settings, about, blocked,
                    error, insecure
@@ -351,6 +354,27 @@ Two rules hold the security model together: the preload only hands the `veil`
 bridge to `veil://` pages, and the main process independently checks the
 sender's URL on every privileged IPC channel. A web page that got hold of the
 bridge still could not read your settings.
+
+## The chrome is three views, not one
+
+The page, the toolbar and the vertical tab bar are three native views stacked
+in one window, and `src/main/layout.js` works out their rectangles. There are
+two arrangements:
+
+- **Docked** - the chrome takes its space, the page gets what is left, nothing
+  overlaps. This is the default.
+- **Floating** ("Hide the chrome") - the page has the whole window and the
+  toolbar and tab bar slide in over the top of it, each on its own, from the
+  edge the pointer reached for. The page never moves, so no frame of the
+  animation costs a document relayout.
+
+The tab bar is a separate view precisely so it can float: a view can only be a
+rectangle, and a toolbar plus a left rail is an L. Two rectangles can be.
+
+Fully hidden means fully hidden - the views sit off-screen, where they can
+neither be seen nor swallow a click meant for the page. Nothing is left to
+hover, which is why the main process watches the cursor instead
+(`src/main/hover.js`) and reveals whichever part the pointer approached.
 
 ## Platforms
 
