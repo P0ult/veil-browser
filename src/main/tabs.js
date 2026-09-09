@@ -19,6 +19,7 @@ class TabManager {
     // How much of the window the chrome occupies: a strip on top, and in
     // vertical-tab mode a rail down the left as well.
     this.inset = opts.inset || { top: 0, left: 0 };
+    this.peekBase = null;      // see contentBounds()
     this.onUpdate = opts.onUpdate || (() => {});
     this.onContextMenu = opts.onContextMenu || (() => {});
     this.onUpgradeFailed = opts.onUpgradeFailed || (() => null);
@@ -45,13 +46,26 @@ class TabManager {
     return '';
   }
 
+  /**
+   * Where the page sits.
+   *
+   * `peekBase` is what makes the tab rail's hover animation smooth. Resizing a
+   * WebContentsView relayouts the entire document inside it, and doing that on
+   * every frame of an animation is what turns a 170ms slide into a stutter.
+   * So while the rail is peeking the page keeps the width it had when the rail
+   * was narrow and only its x moves: a translation repaints, it does not
+   * reflow. The page overhangs the right edge of the window by however far the
+   * rail has opened, which nobody notices for the moment a pointer rests on
+   * the rail, and it is resized exactly once when the rail settles back.
+   */
   contentBounds() {
     const [w, h] = this.win.getContentSize();
     const { top, left } = this.inset;
+    const widthFrom = this.peekBase == null ? left : this.peekBase;
     return {
       x: left,
       y: top,
-      width: Math.max(0, w - left),
+      width: Math.max(0, w - widthFrom),
       height: Math.max(0, h - top)
     };
   }

@@ -445,7 +445,8 @@ html, body { overflow: hidden; background: transparent; }
    it does move the page - there is no way to float the rail over the page,
    because the page's own view is drawn on top of the chrome. */
 #chrome[data-collapsed="1"] { --sidebar-w: 52px; }
-#chrome[data-collapsed="1"][data-peek="1"] { --sidebar-w: var(--sidebar-full); }
+/* While peeking, --sidebar-w is animated frame by frame as an inline style on
+   #chrome, so there is no width rule here to fight with it. */
 #chrome[data-collapsed="1"][data-peek="1"] .side-name,
 #chrome[data-collapsed="1"][data-peek="1"] .side-add span,
 #chrome[data-collapsed="1"][data-peek="1"] .tab .title { display: revert; }

@@ -236,21 +236,60 @@ $('side-new-tab').addEventListener('click', () => veil.tab.open());
  * width moves the page; without them, dragging the pointer diagonally across
  * the rail on the way somewhere else would shove the page sideways and back.
  */
-const PEEK_IN = 180, PEEK_OUT = 140;
-let peekTimer = null;
+const PEEK_IN = 180, PEEK_OUT = 140, PEEK_MS = 170;
+const RAIL_MIN = 52;                       // matches the collapsed width in the CSS
+let peekTimer = null, peekRaf = 0, railW = RAIL_MIN;
+
+function railFullWidth() {
+  const a = (settings && settings.appearance) || {};
+  return Math.max(150, Math.min(420, Number(a.sidebarWidth) || 220));
+}
+
+/**
+ * Slide the rail to a width, telling the main process on every frame.
+ *
+ * The rail and the page have to move together, and they live in different
+ * processes: the rail is CSS in here, the page is a native view positioned by
+ * the main process. Rather than start two animations and hope they stay in
+ * step, this drives both from the same frame - one requestAnimationFrame loop
+ * sets the width and reports it. What stops that from stuttering is on the
+ * other side, in TabManager.contentBounds(): while peeking the page is moved,
+ * never resized, so none of these frames costs a document relayout.
+ */
+function slideRail(to, done) {
+  cancelAnimationFrame(peekRaf);
+  const from = railW;
+  if (Math.round(from) === Math.round(to)) { if (done) done(); return; }
+  const t0 = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / PEEK_MS);
+    const eased = 1 - Math.pow(1 - p, 3);       // ease-out: quick away, gentle arrival
+    railW = from + (to - from) * eased;
+    els.chrome.style.setProperty('--sidebar-w', Math.round(railW) + 'px');
+    reportLayout();
+    if (p < 1) peekRaf = requestAnimationFrame(step);
+    else if (done) done();
+  };
+  peekRaf = requestAnimationFrame(step);
+}
+
+function endPeek() {
+  delete els.chrome.dataset.peek;
+  els.chrome.style.removeProperty('--sidebar-w');
+  railW = RAIL_MIN;
+  reportLayout();               // the one resize of the whole cycle, at rest
+}
 
 function peek(on) {
   clearTimeout(peekTimer);
   peekTimer = setTimeout(() => {
-    const was = els.chrome.dataset.peek === '1';
-    if (els.chrome.dataset.collapsed !== '1') delete els.chrome.dataset.peek;
-    else if (on) els.chrome.dataset.peek = '1';
-    else delete els.chrome.dataset.peek;
-    // Report it rather than waiting for the resize observer to notice. The
-    // page is a separate view positioned by the main process against these
-    // insets; if it is never told, the wider rail is simply drawn underneath
-    // the page and the user sees nothing happen at all.
-    if (was !== (els.chrome.dataset.peek === '1')) reportLayout();
+    if (els.chrome.dataset.collapsed !== '1') { endPeek(); return; }
+    if (on) {
+      els.chrome.dataset.peek = '1';            // titles appear as it opens
+      slideRail(railFullWidth());
+    } else {
+      slideRail(RAIL_MIN, endPeek);
+    }
   }, on ? PEEK_IN : PEEK_OUT);
 }
 
@@ -426,7 +465,14 @@ function applyLayout(s) {
 
   els.chrome.dataset.mode = mode;
   els.chrome.dataset.collapsed = collapsed ? '1' : '0';
-  if (!collapsed) delete els.chrome.dataset.peek;   // nothing to peek at when it is already open
+  // A settings change lands mid-peek if the user is quick; drop the animation
+  // and the inline width it was driving, or the rail is left at whatever width
+  // the last frame happened to set.
+  cancelAnimationFrame(peekRaf);
+  clearTimeout(peekTimer);
+  delete els.chrome.dataset.peek;
+  els.chrome.style.removeProperty('--sidebar-w');
+  railW = collapsed ? RAIL_MIN : Math.max(150, Math.min(420, Number(a.sidebarWidth) || 220));
   document.documentElement.style.setProperty(
     '--sidebar-full', Math.max(150, Math.min(420, Number(a.sidebarWidth) || 220)) + 'px');
 
@@ -450,7 +496,8 @@ function reportLayout() {
     ? Math.ceil(els.topbar.getBoundingClientRect().height)
     : Math.ceil(els.chrome.getBoundingClientRect().height);
   const left = mode === 'side' ? Math.ceil(els.sidebar.getBoundingClientRect().width) : 0;
-  veil.reportLayout({ mode, top, left });
+  const peeking = mode === 'side' && els.chrome.dataset.peek === '1';
+  veil.reportLayout({ mode, top, left, peekBase: peeking ? RAIL_MIN : null });
 }
 
 const layoutWatcher = new ResizeObserver(() => reportLayout());

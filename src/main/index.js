@@ -448,8 +448,14 @@ function wireIpc() {
     const mode = l && l.mode === 'side' ? 'side' : 'top';
     const top = Math.max(0, Math.round(Number(l && l.top) || CHROME_MIN_H));
     const left = mode === 'side' ? Math.max(0, Math.round(Number(l && l.left) || 0)) : 0;
-    if (mode === chromeLayout.mode && top === chromeLayout.top && left === chromeLayout.left) return;
+    // Non-null only while the rail is mid-peek, and then it is the width the
+    // page was laid out against. See TabManager.contentBounds().
+    const peekBase = (mode === 'side' && l && l.peekBase != null)
+      ? Math.max(0, Math.round(Number(l.peekBase) || 0)) : null;
+    if (mode === chromeLayout.mode && top === chromeLayout.top && left === chromeLayout.left
+        && tabs && peekBase === tabs.peekBase) return;
     chromeLayout = { mode, top, left };
+    if (tabs) tabs.peekBase = peekBase;
     relayout();
   }));
 
