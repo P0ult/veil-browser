@@ -36,7 +36,12 @@
     const a = settings.appearance;
     const root = document.documentElement;
 
-    root.setAttribute('data-theme', a.theme === 'light' ? 'light' : 'dark');
+    // No light/dark setting: the background decides. Choose a pale colour and
+    // the text, surfaces and borders swap to their light values so it stays
+    // readable; choose a dark one and nothing changes.
+    const chosen = a.bgColor || (a.bgType === 'gradient' && a.bgGradientA) || '';
+    const isLight = chosen ? readableInk(chosen) === '#0a0f16' : false;
+    root.setAttribute('data-theme', isLight ? 'light' : 'dark');
     root.setAttribute('data-font', a.font || 'system');
     root.setAttribute('data-density', a.density || 'comfortable');
 
@@ -65,7 +70,7 @@
     const dim = document.getElementById('veil-bg-dim');
     // Every one of these falls back to the theme when it is blank, which is
     // what makes the light theme actually light.
-    const light = a.theme === 'light';
+    const light = isLight;
     const base = a.bgColor || (light ? '#f2f4f7' : '#0b0e13');
     const gradA = a.bgGradientA || base;
     const gradB = a.bgGradientB || (light ? '#e4e9f0' : '#131b26');

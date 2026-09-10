@@ -75,9 +75,8 @@ class TabManager {
 
   /** The colour a view should paint before its document has loaded. */
   baseColour() {
-    const a = (this.settings && this.settings.get('appearance', {})) || {};
-    if (a.bgColor) return a.bgColor;
-    return a.theme === 'light' ? '#f2f4f7' : '#0b0e13';
+    const { baseBackground } = require('./settings');
+    return baseBackground((this.settings && this.settings.get('appearance', {})) || {});
   }
 
   layout() {

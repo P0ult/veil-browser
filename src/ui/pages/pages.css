@@ -25,6 +25,7 @@ body { display: flex; flex-direction: column; }
   color: var(--text);
 }
 .mark svg, .mark .veil-mark { width: 34px; height: 34px; color: var(--accent); stroke-width: 1.7; }
+.mark .veil-word { height: 38px; color: var(--text); }
 .mark .name {
   font-size: 30px;
   font-weight: 600;
@@ -177,6 +178,7 @@ body { display: flex; flex-direction: column; }
 }
 .results-head .row { display: flex; align-items: center; gap: 14px; }
 .results-head .mark svg, .results-head .mark .veil-mark { width: 22px; height: 22px; }
+.results-head .mark .veil-word { height: 24px; }
 .results-head .mark .name { font-size: 17px; }
 .results-head .searchbox { height: 42px; box-shadow: none; flex: 1; }
 .results-head .searchbox .go { height: 31px; padding: 0 14px; font-size: 12.5px; }
@@ -497,30 +499,111 @@ dialog label input { display: block; width: 100%; margin-top: 6px; }
   border-color: var(--border);
 }
 
-/* ------------------------------------------------------------------ images */
+/* ------------------------------------------------------------------ images
+
+   Justified rows, filling the width the way an image search should. Each tile
+   is a flex item whose grow factor is its aspect ratio: a row stretches to the
+   container exactly, and everything in that row lands on the same height. The
+   height comes out of the growing, so it is never set - only nudged by the
+   flex-basis each tile is given.                                            */
 
 .imgs {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-  padding: 8px 0 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 0 28px;
 }
-.img-card { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.img-card .shot {
+
+.tile {
+  position: relative;
   display: block;
-  width: 100%;
-  height: 150px;
-  border-radius: 10px;
+  height: 190px;
+  min-width: 120px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
+  flex: 1 1 auto;
 }
-.img-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.img-card .cap {
-  font-size: 12px;
-  color: var(--text-2);
-  white-space: nowrap;
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.tile:hover { border-color: var(--border-strong); }
+
+/* The caption only appears on the tile being pointed at, so the grid stays a
+   wall of pictures rather than a wall of text. */
+.tile .cap {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 16px 8px 6px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.82));
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
-.img-card .host { font-size: 11.5px; color: var(--text-3); }
+.tile:hover .cap { opacity: 1; }
+
+/* Invisible, unbordered, and unable to be the tallest thing in a row: these
+   only exist to stop the final row stretching a couple of tiles across the
+   whole width. */
+.tile.filler {
+  height: 0;
+  border: 0;
+  background: none;
+  flex: 10 1 260px;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------- related searches */
+
+.expansions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 0 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.expansions::-webkit-scrollbar { height: 6px; }
+.expansions::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+
+.exp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 42px;
+  padding: 0 14px 0 4px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.exp:hover { background: var(--surface-2); border-color: var(--border-strong); }
+.exp img {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex: none;
+}
+.exp span { padding-left: 2px; }
+
+/* On the images tab the results want the whole page, so the knowledge panel
+   column collapses and the wrapper gives up its reading width. */
+body[data-vertical="images"] .serp { grid-template-columns: minmax(0, 1fr); gap: 0; }
+body[data-vertical="images"] .serp aside { display: none; }
+/* .wide sets width, not max-width, so that is the property to take back. */
+body[data-vertical="images"] .wrap.wide { width: calc(100% - 36px); }

@@ -38,7 +38,12 @@ html, body { overflow: hidden; background: transparent; height: 100%; }
 }
 .brand { display: grid; place-items: center; width: 20px; height: 20px; color: var(--accent); flex: none; }
 .brand .icon { width: 18px; height: 18px; }
-.name { font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em; }
+
+/* Wide enough for the wordmark: show it and drop the lone V, which the
+   wordmark already contains. Narrow: the V on its own is all that fits. */
+.name.veil-word { height: 17px; color: var(--text); }
+#rail:not([data-collapsed="1"]) .brand { display: none; }
+#rail[data-collapsed="1"][data-peek="1"] .brand { display: none; }
 
 /* ------------------------------------------------------------- shortcuts */
 

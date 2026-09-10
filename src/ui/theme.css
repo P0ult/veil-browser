@@ -181,3 +181,20 @@ a:hover { text-decoration: underline; }
   -webkit-mask-size: contain;
   mask-size: contain;
 }
+
+/* The wordmark. Same trick as the V: an alpha mask, so it takes the colour of
+   whatever is drawing it. Sized by height - the width follows the artwork's
+   own proportions rather than being guessed at. */
+.veil-word {
+  display: inline-block;
+  aspect-ratio: 955 / 400;
+  background-color: currentColor;
+  -webkit-mask-image: url("veil-word.png");
+  mask-image: url("veil-word.png");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: left center;
+  mask-position: left center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}

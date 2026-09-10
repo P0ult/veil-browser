@@ -14,9 +14,8 @@ function findVpn() {
 }
 
 const DEFAULTS = {
-  version: 3,
+  version: 4,
   appearance: {
-    theme: 'dark',                 // dark | light
     accent: '#7dd3a0',
     bgType: 'gradient',            // solid | gradient | image
     // Blank means "whatever the theme says". Storing the dark hexes here was
@@ -52,6 +51,7 @@ const DEFAULTS = {
     customUrl: 'https://searxng.site/search?q=%s',
     backends: { duckduckgo: true, marginalia: true, wikipedia: true, mojeek: false },
     resultCount: 20,
+    hideAiImages: true,            // drop image results that look model-generated
     stripTrackingParams: true,
     openResultsInNewTab: false,
     bangs: {
@@ -173,8 +173,26 @@ function clone(v) { return JSON.parse(JSON.stringify(v)); }
  * on every launch. Version 2 replaces that pair of switches with one retention
  * setting and defaults it to keeping logins.
  */
+/**
+ * Bring an older settings file up to date.
+ *
+ * The steps run oldest first and each one hands over to the next, so a profile
+ * written by any past version walks the whole chain in a single load. Running
+ * them newest first - which this used to do - advanced a file by exactly one
+ * step per launch, and quietly stranded anything more than one version behind.
+ */
 function migrate(data) {
   let changed = false;
+
+  if (!data.version || data.version < 2) {
+    const p = data.privacy || (data.privacy = {});
+    if (p.retention === undefined) p.retention = 'keep';
+    delete p.ephemeral;
+    delete p.clearOnExit;
+    data.version = 2;
+    changed = true;
+  }
+
   if (data.version === 2) {
     // The dark background hexes used to be written into every profile, which
     // meant switching to the light theme changed the text and left the page
@@ -187,14 +205,20 @@ function migrate(data) {
     data.version = 3;
     changed = true;
   }
-  if (!data.version || data.version < 2) {
-    const p = data.privacy || (data.privacy = {});
-    if (p.retention === undefined) p.retention = 'keep';
-    delete p.ephemeral;
-    delete p.clearOnExit;
-    data.version = 2;
+
+  if (data.version === 3) {
+    // The light/dark switch is gone. Dark is the only starting point, and a
+    // light interface is made by choosing a light background - the text and
+    // surfaces follow whatever colour is set. A profile that was on the light
+    // theme keeps looking light, by being given the background that theme
+    // used to paint.
+    const a = data.appearance || (data.appearance = {});
+    if (a.theme === 'light' && !a.bgColor) a.bgColor = '#f2f4f7';
+    delete a.theme;
+    data.version = 4;
     changed = true;
   }
+
   return { data, changed };
 }
 
@@ -277,4 +301,25 @@ class Settings {
   emit() { for (const fn of this._listeners) { try { fn(this.data); } catch {} } }
 }
 
-module.exports = { Settings, DEFAULTS, findVpn };
+/**
+ * Whether a background colour wants dark text on it.
+ *
+ * The interface has no light/dark setting any more: it reads the background
+ * and dresses itself accordingly, so that picking a pale colour cannot leave
+ * pale text on top of it.
+ */
+function isLightColour(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex || ''));
+  if (!m) return false;
+  const [r, g, b] = [1, 2, 3].map(i => parseInt(m[i], 16) / 255).map(
+    v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.4;
+}
+
+/** The colour the window and any new view should start out painted. */
+function baseBackground(appearance) {
+  const a = appearance || {};
+  return a.bgColor || (a.bgType === 'gradient' && a.bgGradientA) || '#0b0e13';
+}
+
+module.exports = { Settings, DEFAULTS, findVpn, isLightColour, baseBackground };

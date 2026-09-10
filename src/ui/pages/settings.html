@@ -31,16 +31,6 @@
       <h2>Appearance</h2>
 
       <div class="row">
-        <div class="info"><label>Theme</label></div>
-        <div class="ctl">
-          <select data-bind="appearance.theme">
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="row">
         <div class="info"><label>Accent</label></div>
         <div class="ctl">
           <input type="color" data-bind="appearance.accent">
@@ -70,7 +60,7 @@
       </div>
 
       <div class="row">
-        <div class="info"><label>Background</label></div>
+        <div class="info"><label>Background</label><small>There is no light or dark setting: pick a pale colour here and the interface dresses itself to suit it.</small></div>
         <div class="ctl">
           <select data-bind="appearance.bgType">
             <option value="solid">Solid</option>
@@ -247,6 +237,11 @@
           <label class="chip">Wikipedia <button class="switch" role="switch" data-bind="search.backends.wikipedia"></button></label>
           <label class="chip">Mojeek <button class="switch" role="switch" data-bind="search.backends.mojeek"></button></label>
         </div>
+      </div>
+
+      <div class="row" data-when="search.engine=veil">
+        <div class="info"><label>Hide AI images</label><small>Drops image results from sites that only publish generated pictures, and ones whose titles say so. It is a guess either way: it will miss some and occasionally take one it should not.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="search.hideAiImages"></button></div>
       </div>
 
       <div class="row" data-when="search.engine=veil">

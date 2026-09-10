@@ -8,9 +8,9 @@ const page = Math.max(1, Math.min(20, Number(params.get('p')) || 1));
 // 'web' or 'images'. Kept in the address so a result page can be returned to.
 const vertical = params.get('t') === 'images' ? 'images' : 'web';
 
-function pageUrl(n, t) {
+function pageUrl(n, t, q) {
   const which = t || vertical;
-  return 'veil://search/?q=' + encodeURIComponent(query) +
+  return 'veil://search/?q=' + encodeURIComponent(q || query) +
          (n > 1 ? '&p=' + n : '') +
          (which === 'images' ? '&t=images' : '');
 }
@@ -33,43 +33,81 @@ function renderVerticals() {
 
 /* ---------------------------------------------------------------- images */
 
+/* A tile in a justified row.
+ *
+ * Rows are packed by the browser rather than by arithmetic here: each tile is
+ * a flex item whose grow factor is its aspect ratio, so a row of them stretches
+ * to exactly the container width and every tile in that row ends up the same
+ * height. Wide pictures take more of the row than tall ones, which is what
+ * stops the grid looking like a spreadsheet. */
 function renderImage(im) {
-  const card = document.createElement('div');
-  card.className = 'img-card';
+  const ratio = (im.width && im.height) ? (im.width / im.height) : 1.5;
 
   const a = document.createElement('a');
-  a.className = 'shot';
+  a.className = 'tile';
   a.href = im.source;
-  a.title = im.title || im.source;
+  a.title = (im.title || im.host) + ' - ' + im.host;
+  a.style.flexGrow = String(ratio);
+  a.style.flexBasis = Math.round(ratio * 190) + 'px';
   a.addEventListener('click', (e) => { e.preventDefault(); veil.go(im.source); });
 
   const img = document.createElement('img');
   img.src = im.thumbnail;
   img.alt = '';
   img.loading = 'lazy';
-  // The thumbnail is someone else's server; it does not need to be told which
-  // page asked for it.
+  // Someone else's server; it does not need to know which page asked.
   img.referrerPolicy = 'no-referrer';
-  img.addEventListener('error', () => card.remove());
+  img.addEventListener('error', () => a.remove());
   a.append(img);
 
-  const cap = document.createElement('div');
+  const cap = document.createElement('span');
   cap.className = 'cap';
   cap.textContent = im.title || im.host;
+  a.append(cap);
 
-  const host = document.createElement('div');
-  host.className = 'host';
-  host.textContent = im.host + (im.width ? '  ·  ' + im.width + '×' + im.height : '');
+  return a;
+}
 
-  card.append(a, cap, host);
-  return card;
+/* The related searches above the grid: a refinement of what was asked, not a
+   new search. Each carries the whole refined query, so "Black Lab" on a search
+   for dogs becomes "Black Lab Dog". */
+function renderExpansions(list) {
+  const bar = document.getElementById('expansions');
+  bar.replaceChildren();
+  bar.hidden = !list || !list.length;
+  if (bar.hidden) return;
+
+  for (const e of list) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'exp';
+    b.title = 'Search for: ' + e.query;
+
+    if (e.thumbnail) {
+      const t = document.createElement('img');
+      t.src = e.thumbnail;
+      t.alt = '';
+      t.loading = 'lazy';
+      t.referrerPolicy = 'no-referrer';
+      t.addEventListener('error', () => t.remove());
+      b.append(t);
+    }
+    const label = document.createElement('span');
+    label.textContent = e.label;
+    b.append(label);
+
+    b.addEventListener('click', () => veil.go(pageUrl(1, 'images', e.query)));
+    bar.append(b);
+  }
 }
 
 async function runImages() {
+  document.body.dataset.vertical = 'images';
   $('out').replaceChildren(skeleton());
   $('side').replaceChildren();
 
   const data = await veil.searchImages(query, page);
+  renderExpansions(data.expansions);
   const out = document.createDocumentFragment();
 
   if (!data.results.length) {
@@ -84,11 +122,19 @@ async function runImages() {
     const grid = document.createElement('div');
     grid.className = 'imgs';
     for (const im of data.results) grid.append(renderImage(im));
+    // Without these, the last row stretches its few tiles across the whole
+    // width, which reads as a mistake rather than as the end of the results.
+    for (let i = 0; i < 6; i++) {
+      const filler = document.createElement('span');
+      filler.className = 'tile filler';
+      grid.append(filler);
+    }
     out.append(grid);
   }
 
   const bits = [];
   if (data.results.length) bits.push(data.results.length + ' images');
+  if (data.hidden) bits.push(data.hidden + ' AI-looking hidden');
   bits.push(((data.took || 0) / 1000).toFixed(1) + 's');
   if (page > 1) bits.push('page ' + page);
   $('meta').textContent = bits.join('  ·  ');
@@ -277,6 +323,7 @@ async function run() {
   $('q').value = query;
   $('meta').textContent = '';
 
+  document.body.dataset.vertical = vertical;
   renderVerticals();
 
   if (!query) {

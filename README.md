@@ -361,9 +361,13 @@ Everything that can be recoloured has a token in `src/ui/theme.css`, and
 `src/ui/theme.js` applies the user's choices on top of them. Two rules keep
 that from turning into an unusable mess:
 
+- **There is no light/dark switch.** The background is the switch: pick a pale
+  colour and the text, surfaces, borders and outlines all move to their light
+  values, because `theme.js` reads the background's luminance and dresses the
+  interface to suit it. Dark is simply what an unset background looks like.
 - **Blank means "follow the theme".** The background, the link colour and the
   tab bar colour are all empty by default. Storing a concrete value is what
-  used to break the light theme: the text switched and the background did not,
+  used to break light mode: the text switched and the background did not,
   because a colour was always set and it was always the dark one.
 - **Controls keep a hard outline.** Once someone picks a strong background,
   translucent surfaces and tinted borders stop separating anything from

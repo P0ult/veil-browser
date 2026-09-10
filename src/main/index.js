@@ -3,7 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { app, BaseWindow, WebContentsView, session, ipcMain, Menu, dialog, shell, clipboard, nativeTheme, webContents, safeStorage, screen } = require('electron');
 
-const { Settings } = require('./settings');
+const { Settings, isLightColour, baseBackground } = require('./settings');
 const { AdBlock } = require('./adblock');
 const { NetPrivacy } = require('./net-privacy');
 const { SearchEngine } = require('./search');
@@ -578,7 +578,7 @@ function createWindow() {
     minHeight: 560,
     frame: false,
     show: false,
-    backgroundColor: settings.get('appearance.theme') === 'light' ? '#f4f5f7' : '#0b0e13',
+    backgroundColor: baseBackground(settings.get('appearance', {})),
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.ico'),
     title: 'Veil'
   });
@@ -1125,7 +1125,7 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     settings = new Settings();
-    nativeTheme.themeSource = settings.get('appearance.theme') === 'light' ? 'light' : 'dark';
+    nativeTheme.themeSource = isLightColour(baseBackground(settings.get('appearance', {}))) ? 'light' : 'dark';
 
     createSessions();
     registerHandler(settings, browseSession);
