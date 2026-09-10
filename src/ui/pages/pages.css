@@ -573,8 +573,10 @@ dialog label input { display: block; width: 100%; margin-top: 6px; }
   overflow-y: hidden;
   scrollbar-width: thin;
 }
-.expansions::-webkit-scrollbar { height: 6px; }
-.expansions::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+/* Scrolls, but without the bar: it sat under the chips as a grey slab and
+   the row is short enough to drag or wheel through. */
+.expansions { scrollbar-width: none; }
+.expansions::-webkit-scrollbar { height: 0; width: 0; display: none; }
 
 .exp {
   display: inline-flex;
@@ -607,3 +609,140 @@ body[data-vertical="images"] .serp { grid-template-columns: minmax(0, 1fr); gap:
 body[data-vertical="images"] .serp aside { display: none; }
 /* .wide sets width, not max-width, so that is the property to take back. */
 body[data-vertical="images"] .wrap.wide { width: calc(100% - 36px); }
+
+/* ------------------------------------------------------------------ videos */
+
+.vids { display: flex; flex-direction: column; gap: 22px; padding: 14px 0 24px; }
+
+.vid { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 18px; align-items: start; }
+.vid .shot {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.vid .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vid .dur {
+  position: absolute;
+  right: 6px; bottom: 6px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.vid h3 { margin: 0 0 4px; font-size: 15.5px; font-weight: 600; line-height: 1.35; }
+.vid h3 a { color: var(--link); }
+.vid p { margin: 6px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.5; }
+
+@media (max-width: 720px) {
+  .vid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* -------------------------------------------------------------------- news */
+
+.newslist { display: flex; flex-direction: column; gap: 20px; padding: 14px 0 24px; }
+
+.news { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 18px; align-items: start; }
+.news:not(:has(.shot)) { grid-template-columns: minmax(0, 1fr); }
+.news .body { order: -1; }
+.news .shot {
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.news .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.news h3 { margin: 3px 0 0; font-size: 15.5px; font-weight: 600; line-height: 1.35; }
+.news h3 a { color: var(--link); }
+.news p { margin: 6px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.5; }
+
+.sub { color: var(--text-3); font-size: 12px; }
+
+/* ------------------------------------------------------------- the viewer */
+
+#viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(0, 0, 0, 0.82);
+}
+#viewer .sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: min(1200px, 100%);
+  max-height: 100%;
+}
+#viewer .stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+#viewer .stage img {
+  max-width: 100%;
+  /* Leave room for the caption strip, so the picture never runs under it. */
+  max-height: calc(100vh - 150px);
+  object-fit: contain;
+  border-radius: 10px;
+  background: #0006;
+}
+#viewer .info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: none;
+  color: #fff;
+}
+#viewer .text { min-width: 0; flex: 1; }
+#viewer h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#viewer .sub { color: rgba(255, 255, 255, 0.66); margin-top: 2px; }
+#viewer .acts { display: flex; gap: 8px; flex: none; }
+#viewer .btn {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+#viewer .btn:hover { background: rgba(255, 255, 255, 0.24); }
+
+#viewer .close,
+#viewer .step {
+  position: absolute;
+  z-index: 1;
+  width: 40px; height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+}
+#viewer .close:hover,
+#viewer .step:hover:not(:disabled) { background: rgba(0, 0, 0, 0.8); }
+#viewer .step:disabled { opacity: 0.25; }
+#viewer .close { top: -6px; right: -6px; font-size: 20px; }
+#viewer .prev { left: -12px; top: calc(50% - 60px); }
+#viewer .next { right: -12px; top: calc(50% - 60px); }
+
+/* Nothing behind the viewer should scroll while it is open. */
+body[data-viewer="1"] { overflow: hidden; }

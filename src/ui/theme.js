@@ -62,6 +62,7 @@
     else root.style.removeProperty('--rail-bg');
 
     root.setAttribute('data-outline', a.outline === false ? '0' : '1');
+    root.setAttribute('data-glass', a.glass ? '1' : '0');
 
     if (!document.body) return;
     ensureLayers();

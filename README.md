@@ -365,6 +365,11 @@ that from turning into an unusable mess:
   colour and the text, surfaces, borders and outlines all move to their light
   values, because `theme.js` reads the background's luminance and dresses the
   interface to suit it. Dark is simply what an unset background looks like.
+- **Liquid glass is honest about its limits.** Frosted panels use a real
+  `backdrop-filter`, which blurs whatever is behind them *within their own
+  view*. The toolbar and tab bar are separate native views from the page, and
+  a backdrop-filter cannot reach across that boundary - so glass panels blur
+  the chrome's own background, not the web page under them.
 - **Blank means "follow the theme".** The background, the link colour and the
   tab bar colour are all empty by default. Storing a concrete value is what
   used to break light mode: the text switched and the background did not,
@@ -376,6 +381,20 @@ that from turning into an unusable mess:
 
 The logo is carried as an alpha mask (`src/ui/veil-mark.png`), so it takes the
 colour of whatever is drawing it rather than bringing its own background.
+
+## Search verticals
+
+Web, Images, Videos, News and Shopping, chosen with `?t=` so a results page is
+an ordinary address that can be returned to.
+
+Images, Videos and News each come from an endpoint of their own, all of which
+want a token fetched per query. **Shopping has no endpoint at all** - the
+shopping and product paths fall through to the generic instant-answer API and
+return nothing - so it is image results narrowed to retailers: a picture of the
+thing, linking to the listing. That means no prices, and the page says so
+rather than leaving a gap where a number should be. How well it works varies
+with the query; a search whose results are mostly editorial will show few
+listings.
 
 ## The chrome is three views, not one
 

@@ -399,3 +399,12 @@ html, body { overflow: hidden; background: transparent; }
 }
 .fav[data-icon="1"] img { display: block; }
 .fav[data-icon="1"] { background: transparent !important; color: transparent; }
+
+/* Glass. The chrome's own panel goes translucent so the background colour
+   reads through it, and the blur applies to what this view draws. */
+:root[data-glass="1"] #chrome {
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+}
+:root[data-glass="1"] .tab.active { box-shadow: inset 0 1px 0 var(--glass-edge); }

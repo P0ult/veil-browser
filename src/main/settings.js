@@ -44,7 +44,8 @@ const DEFAULTS = {
     showShortcuts: false,          // they live in the tab rail now; this is the start page's copy
     linkColor: '',                 // blank = the theme's blue
     railColor: '',                 // blank = the same surface as the rest of the chrome
-    outline: true                  // a hard edge on controls, so any background stays usable
+    outline: true,                 // a hard edge on controls, so any background stays usable
+    glass: false                   // frosted, translucent surfaces
   },
   search: {
     engine: 'veil',                // veil | duckduckgo | mojeek | startpage | brave | wikipedia | custom

@@ -869,6 +869,13 @@ function wireIpc() {
     return searchEngine.images(String(q || ''), Math.max(1, Number(page) || 1));
   }));
 
+  ipcMain.handle('search:videos', guard(async (e, q, page) =>
+    searchEngine.videos(String(q || ''), Math.max(1, Number(page) || 1))));
+  ipcMain.handle('search:news', guard(async (e, q, page) =>
+    searchEngine.news(String(q || ''), Math.max(1, Number(page) || 1))));
+  ipcMain.handle('search:shopping', guard(async (e, q, page) =>
+    searchEngine.shopping(String(q || ''), Math.max(1, Number(page) || 1))));
+
   ipcMain.handle('search:url-for', guard((e, q) => searchEngine.urlForQuery(String(q || ''))));
 
   ipcMain.handle('adblock:stats', guard(() => ({

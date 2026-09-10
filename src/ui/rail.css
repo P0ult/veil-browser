@@ -256,3 +256,17 @@ html, body { overflow: hidden; background: transparent; height: 100%; }
 }
 .fav[data-icon="1"] img { display: block; }
 .fav[data-icon="1"] { background: transparent !important; color: transparent; }
+
+/* Glass, as elsewhere. The rail's own panel is translucent so the colour
+   underneath shows through it; its blur applies within this view. */
+:root[data-glass="1"] #rail {
+  background: color-mix(in srgb, var(--rail-bg, var(--bg)) 62%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  border-right-color: var(--border-strong);
+}
+:root[data-glass="1"] .tab.active,
+:root[data-glass="1"] .shortcut,
+:root[data-glass="1"] .foot button:hover {
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}

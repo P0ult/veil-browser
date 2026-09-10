@@ -181,6 +181,105 @@ function looksGenerated(r) {
   return AI_WORDS.some(w => hay.includes(w));
 }
 
+
+/* ---------------------------------------------------------- more verticals
+
+   Videos and news come from endpoints of their own, which take the same
+   per-query token the image search needs. Shopping does not exist as an
+   endpoint at all - the shopping and product paths fall through to the generic
+   instant-answer API and return nothing - so it is built out of image results
+   narrowed to retailers. That gives pictures of the thing that link to the
+   listing, which is most of what a shopping tab is for, but it cannot give
+   prices, and nothing here pretends otherwise.                              */
+
+const RETAIL_HOSTS = [
+  'amazon.', 'ebay.', 'etsy.com', 'aliexpress.', 'temu.com', 'walmart.com',
+  'target.com', 'bestbuy.com', 'costco.', 'newegg.com', 'homedepot.com',
+  'lowes.com', 'wayfair.', 'ikea.com', 'bhphotovideo.com', 'argos.co.uk',
+  'currys.co.uk', 'johnlewis.com', 'screwfix.com', 'diy.com', 'very.co.uk',
+  'ao.com', 'appliancesdirect.co.uk', 'jbhifi.com.au', 'officeworks.com.au',
+  'kogan.com', 'catch.com.au', 'bigw.com.au', 'kmart.com.au', 'myer.com.au',
+  'harveynorman.', 'thegoodguys.com.au', 'bunnings.com.au', 'woolworths.',
+  'coles.com.au', 'flipkart.com', 'shopee.', 'lazada.', 'rakuten.',
+  'zalando.', 'asos.com', 'next.co.uk', 'marksandspencer.com'
+];
+
+function isRetail(host) {
+  const h = String(host || '').toLowerCase();
+  return RETAIL_HOSTS.some(r => h.includes(r));
+}
+
+function decodeHtml(text) {
+  return String(text || '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&#x27;/g, "'").replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+}
+
+/** The token both of these need, with one retry for a cold network stack. */
+async function vqdFor(query, session, ia) {
+  const url = 'https://duckduckgo.com/?q=' + encodeURIComponent(query) + '&ia=' + ia;
+  let html;
+  try { html = await fetchText(url, session, { timeout: 9000 }); }
+  catch { html = await fetchText(url, session, { timeout: 15000 }); }
+  const m = /vqd=["']?([-\w]+)["']?/.exec(html);
+  if (!m) throw new Error('no token');
+  return m[1];
+}
+
+async function ddgVideos(query, session, page = 1) {
+  const vqd = await vqdFor(query, session, 'videos');
+  const offset = (Math.max(1, page) - 1) * 60;
+  const url = 'https://duckduckgo.com/v.js?l=us-en&o=json&q=' + encodeURIComponent(query) +
+              '&vqd=' + encodeURIComponent(vqd) + '&f=,,,&p=1&s=' + offset;
+  const body = await fetchText(url, session, {
+    headers: { 'Referer': 'https://duckduckgo.com/', 'Accept': 'application/json' }
+  });
+
+  let data;
+  try { data = JSON.parse(body); } catch { throw new Error('unreadable reply'); }
+
+  return (Array.isArray(data.results) ? data.results : []).map(r => ({
+    title: decodeHtml(r.title).slice(0, 200),
+    url: String(r.content || ''),
+    description: decodeHtml(r.description).slice(0, 300),
+    thumbnail: String((r.images && (r.images.medium || r.images.large || r.images.small)) || ''),
+    duration: String(r.duration || ''),
+    publisher: String(r.publisher || r.provider || ''),
+    uploader: String(r.uploader || ''),
+    published: String(r.published || ''),
+    views: Number((r.statistics && r.statistics.viewCount) || 0)
+  })).filter(r => /^https?:/i.test(r.url) && r.title);
+}
+
+async function ddgNews(query, session, page = 1) {
+  const vqd = await vqdFor(query, session, 'news');
+  const offset = (Math.max(1, page) - 1) * 30;
+  const url = 'https://duckduckgo.com/news.js?l=us-en&o=json&q=' + encodeURIComponent(query) +
+              '&vqd=' + encodeURIComponent(vqd) + '&noamp=1&p=1&s=' + offset;
+  const body = await fetchText(url, session, {
+    headers: { 'Referer': 'https://duckduckgo.com/', 'Accept': 'application/json' }
+  });
+
+  let data;
+  try { data = JSON.parse(body); } catch { throw new Error('unreadable reply'); }
+
+  return (Array.isArray(data.results) ? data.results : []).map(r => ({
+    title: decodeHtml(r.title).slice(0, 220),
+    url: String(r.url || ''),
+    excerpt: decodeHtml(r.excerpt).slice(0, 400),
+    source: String(r.source || ''),
+    image: String(r.image || ''),
+    when: String(r.relative_time || ''),
+    date: Number(r.date) || 0
+  })).filter(r => /^https?:/i.test(r.url) && r.title)
+    // The endpoint returns these by relevance, which for a news tab means the
+    // top of the page can be years old. Newest first is what "news" means.
+    .sort((a, b) => b.date - a.date);
+}
+
 /* -------------------------------------------------------------------- images
 
    DuckDuckGo's image endpoint needs a token it only hands out on the HTML page
@@ -520,6 +619,60 @@ class SearchEngine {
       return { query: q, page, results: [], expansions: [], hidden: 0,
                took: Date.now() - started,
                error: 'Image search did not answer (' + (e.message || 'failed') + ')' };
+    }
+  }
+
+  /** Video results. A different shape again, so it gets its own call. */
+  async videos(query, page = 1) {
+    const q = String(query || '').trim();
+    if (!q) return { query: q, page: 1, results: [], error: '' };
+    const started = Date.now();
+    try {
+      const results = await ddgVideos(q, this.session, page);
+      return { query: q, page, results, took: Date.now() - started, error: '' };
+    } catch (e) {
+      return { query: q, page, results: [], took: Date.now() - started,
+               error: 'Video search did not answer (' + (e.message || 'failed') + ')' };
+    }
+  }
+
+  async news(query, page = 1) {
+    const q = String(query || '').trim();
+    if (!q) return { query: q, page: 1, results: [], error: '' };
+    const started = Date.now();
+    try {
+      const results = await ddgNews(q, this.session, page);
+      return { query: q, page, results, took: Date.now() - started, error: '' };
+    } catch (e) {
+      return { query: q, page, results: [], took: Date.now() - started,
+               error: 'News search did not answer (' + (e.message || 'failed') + ')' };
+    }
+  }
+
+  /**
+   * Shopping, such as it can be.
+   *
+   * There is no shopping endpoint to ask, so this narrows image results to
+   * retailers: a picture of the thing that links to the listing. No prices -
+   * they are not in anything Veil can see - and the page says so rather than
+   * leaving a gap where a number should be.
+   */
+  async shopping(query, page = 1) {
+    const q = String(query || '').trim();
+    if (!q) return { query: q, page: 1, results: [], error: '' };
+    const started = Date.now();
+    try {
+      const { results } = await ddgImages(q, this.session, page);
+      const shops = results.filter(r => isRetail(r.host));
+      return {
+        query: q, page, results: shops,
+        scanned: results.length,
+        took: Date.now() - started,
+        error: shops.length ? '' : 'No retailers in these results.'
+      };
+    } catch (e) {
+      return { query: q, page, results: [], scanned: 0, took: Date.now() - started,
+               error: 'Shopping search did not answer (' + (e.message || 'failed') + ')' };
     }
   }
 

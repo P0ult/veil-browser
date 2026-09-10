@@ -476,6 +476,9 @@ if (isInternal) {
 
     search: (q, page) => ipcRenderer.invoke('search:run', q, page),
     searchImages: (q, page) => ipcRenderer.invoke('search:images', q, page),
+    searchVideos: (q, page) => ipcRenderer.invoke('search:videos', q, page),
+    searchNews: (q, page) => ipcRenderer.invoke('search:news', q, page),
+    searchShopping: (q, page) => ipcRenderer.invoke('search:shopping', q, page),
     searchUrlFor: (q) => ipcRenderer.invoke('search:url-for', q),
 
     adblock: {
