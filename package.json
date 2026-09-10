@@ -29,7 +29,8 @@
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -61,7 +62,8 @@
       "category": "public.app-category.productivity",
       "darkModeSupport": true,
       "identity": null,
-      "notarize": false
+      "notarize": false,
+      "icon": "assets/icon.png"
     }
   },
   "devDependencies": {

@@ -355,6 +355,24 @@ bridge to `veil://` pages, and the main process independently checks the
 sender's URL on every privileged IPC channel. A web page that got hold of the
 bridge still could not read your settings.
 
+## Appearance
+
+Everything that can be recoloured has a token in `src/ui/theme.css`, and
+`src/ui/theme.js` applies the user's choices on top of them. Two rules keep
+that from turning into an unusable mess:
+
+- **Blank means "follow the theme".** The background, the link colour and the
+  tab bar colour are all empty by default. Storing a concrete value is what
+  used to break the light theme: the text switched and the background did not,
+  because a colour was always set and it was always the dark one.
+- **Controls keep a hard outline.** Once someone picks a strong background,
+  translucent surfaces and tinted borders stop separating anything from
+  anything. `--outline` is a flat, high-contrast edge that does not depend on
+  the palette, and it can be switched off.
+
+The logo is carried as an alpha mask (`src/ui/veil-mark.png`), so it takes the
+colour of whatever is drawing it rather than bringing its own background.
+
 ## The chrome is three views, not one
 
 The page, the toolbar and the vertical tab bar are three native views stacked

@@ -475,6 +475,7 @@ if (isInternal) {
     importSettings: () => ipcRenderer.invoke('settings:import'),
 
     search: (q, page) => ipcRenderer.invoke('search:run', q, page),
+    searchImages: (q, page) => ipcRenderer.invoke('search:images', q, page),
     searchUrlFor: (q) => ipcRenderer.invoke('search:url-for', q),
 
     adblock: {

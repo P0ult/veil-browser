@@ -73,13 +73,29 @@ class TabManager {
     };
   }
 
+  /** The colour a view should paint before its document has loaded. */
+  baseColour() {
+    const a = (this.settings && this.settings.get('appearance', {})) || {};
+    if (a.bgColor) return a.bgColor;
+    return a.theme === 'light' ? '#f2f4f7' : '#0b0e13';
+  }
+
   layout() {
     const b = this.contentBounds();
     const t = this.active();
     if (t) t.view.setBounds(b);
   }
 
-  create(url, { background = false, insertAfterActive = true } = {}) {
+  /**
+   * A new tab goes at the end of the list.
+   *
+   * Chromium opens a tab next to its parent, which suits a tab strip that
+   * grows sideways. A vertical list is read top to bottom, and having new
+   * tabs appear in the middle of it loses your place - so every tab now goes
+   * on the end, links from a page included. The old behaviour is still here
+   * behind `insertAfterActive` for any caller that wants it.
+   */
+  create(url, { background = false, insertAfterActive = false } = {}) {
     const id = nextId++;
     const view = new WebContentsView({
       webPreferences: {
@@ -98,6 +114,11 @@ class TabManager {
       }
     });
 
+    // Chromium paints a new view white until the document says otherwise,
+    // which reads as a frame of flash when a tab opens over a dark UI. The
+    // view is told the theme's own colour up front so there is nothing to see.
+    try { view.setBackgroundColor(this.baseColour()); } catch {}
+
     const wc = view.webContents;
     const tab = {
       id, view,
@@ -106,6 +127,7 @@ class TabManager {
       loading: false,
       canGoBack: false,
       canGoForward: false,
+      favicon: '',
       failed: null
     };
 
@@ -150,7 +172,18 @@ class TabManager {
     wc.on('did-start-loading', () => { tab.loading = true; tab.failed = null; this.emit(); });
     wc.on('did-stop-loading', () => { tab.loading = false; push(); });
     wc.on('did-start-navigation', (e) => {
-      if (e.isMainFrame) this.resetBlocked(wc.id);
+      if (!e.isMainFrame) return;
+      this.resetBlocked(wc.id);
+      // Drop the old site's icon straight away rather than showing it against
+      // the new one's title for however long the next page takes to load.
+      if (tab.favicon) { tab.favicon = ''; this.emit(); }
+    });
+
+    wc.on('page-favicon-updated', (e, icons) => {
+      const next = (Array.isArray(icons) ? icons : []).find(u => /^https?:/i.test(u)) || '';
+      if (next === tab.favicon) return;
+      tab.favicon = next;
+      this.emit();
     });
     wc.on('did-navigate', (e, url) => { tab.url = url; push(); });
     wc.on('did-navigate-in-page', (e, url, isMain) => { if (isMain) { tab.url = url; push(); } });
@@ -270,6 +303,7 @@ class TabManager {
           id: t.id,
           title: t.title,
           url: t.url,
+          favicon: t.favicon,
           loading: t.loading,
           canGoBack: t.canGoBack,
           canGoForward: t.canGoForward,

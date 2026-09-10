@@ -13,7 +13,9 @@ html, body { overflow: hidden; background: transparent; height: 100%; }
   flex-direction: column;
   height: 100vh;
   width: 100%;
-  background: var(--bg);
+  /* Its own token, so the rail can be a different colour from everything
+     else without the rest of the chrome following it. */
+  background: var(--rail-bg, var(--bg));
   border-right: 1px solid var(--border);
   user-select: none;
   overflow: hidden;
@@ -235,3 +237,17 @@ html, body { overflow: hidden; background: transparent; height: 100%; }
 :root[data-density="compact"] .tab { height: 28px; }
 :root[data-density="compact"] .add,
 :root[data-density="compact"] .foot button { height: 28px; }
+
+/* A favicon sits on top of the lettered square, which stays underneath as the
+   fallback for sites that have no icon or whose icon fails to load. */
+.fav { position: relative; overflow: hidden; }
+.fav img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: none;
+}
+.fav[data-icon="1"] img { display: block; }
+.fav[data-icon="1"] { background: transparent !important; color: transparent; }

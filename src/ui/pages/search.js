@@ -5,8 +5,100 @@ const params = new URL(location.href).searchParams;
 const query = params.get('q') || '';
 const page = Math.max(1, Math.min(20, Number(params.get('p')) || 1));
 
-function pageUrl(n) {
-  return 'veil://search/?q=' + encodeURIComponent(query) + (n > 1 ? '&p=' + n : '');
+// 'web' or 'images'. Kept in the address so a result page can be returned to.
+const vertical = params.get('t') === 'images' ? 'images' : 'web';
+
+function pageUrl(n, t) {
+  const which = t || vertical;
+  return 'veil://search/?q=' + encodeURIComponent(query) +
+         (n > 1 ? '&p=' + n : '') +
+         (which === 'images' ? '&t=images' : '');
+}
+
+/* ------------------------------------------------------------- verticals */
+
+function renderVerticals() {
+  const bar = $('verticals');
+  bar.replaceChildren();
+  if (!query) return;
+  for (const [id, label] of [['web', 'Web'], ['images', 'Images']]) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.setAttribute('aria-selected', id === vertical ? 'true' : 'false');
+    if (id !== vertical) b.addEventListener('click', () => veil.go(pageUrl(1, id)));
+    bar.append(b);
+  }
+}
+
+/* ---------------------------------------------------------------- images */
+
+function renderImage(im) {
+  const card = document.createElement('div');
+  card.className = 'img-card';
+
+  const a = document.createElement('a');
+  a.className = 'shot';
+  a.href = im.source;
+  a.title = im.title || im.source;
+  a.addEventListener('click', (e) => { e.preventDefault(); veil.go(im.source); });
+
+  const img = document.createElement('img');
+  img.src = im.thumbnail;
+  img.alt = '';
+  img.loading = 'lazy';
+  // The thumbnail is someone else's server; it does not need to be told which
+  // page asked for it.
+  img.referrerPolicy = 'no-referrer';
+  img.addEventListener('error', () => card.remove());
+  a.append(img);
+
+  const cap = document.createElement('div');
+  cap.className = 'cap';
+  cap.textContent = im.title || im.host;
+
+  const host = document.createElement('div');
+  host.className = 'host';
+  host.textContent = im.host + (im.width ? '  ·  ' + im.width + '×' + im.height : '');
+
+  card.append(a, cap, host);
+  return card;
+}
+
+async function runImages() {
+  $('out').replaceChildren(skeleton());
+  $('side').replaceChildren();
+
+  const data = await veil.searchImages(query, page);
+  const out = document.createDocumentFragment();
+
+  if (!data.results.length) {
+    const box = document.createElement('div');
+    box.className = 'empty';
+    box.innerHTML = '<h2>No images</h2>';
+    const p = document.createElement('p');
+    p.textContent = data.error || 'Nothing came back for that.';
+    box.append(p);
+    out.append(box);
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'imgs';
+    for (const im of data.results) grid.append(renderImage(im));
+    out.append(grid);
+  }
+
+  const bits = [];
+  if (data.results.length) bits.push(data.results.length + ' images');
+  bits.push(((data.took || 0) / 1000).toFixed(1) + 's');
+  if (page > 1) bits.push('page ' + page);
+  $('meta').textContent = bits.join('  ·  ');
+
+  if (data.results.length) {
+    const nav = renderPager({ page, hasNext: data.results.length >= 40 });
+    if (nav) out.append(nav);
+  }
+
+  $('out').replaceChildren(out);
 }
 
 function hue(str) {
@@ -152,7 +244,7 @@ function renderEmpty(data) {
   return box;
 }
 
-function renderPager(data) {
+function renderPager(data) {   // { page, hasNext } - both verticals use this
   if (data.page <= 1 && !data.hasNext) return null;
 
   const nav = document.createElement('div');
@@ -185,7 +277,10 @@ async function run() {
   $('q').value = query;
   $('meta').textContent = '';
 
+  renderVerticals();
+
   if (!query) {
+    $('side').replaceChildren();
     $('out').replaceChildren();
     const box = document.createElement('div');
     box.className = 'empty';
@@ -195,12 +290,17 @@ async function run() {
     return;
   }
 
+  if (vertical === 'images') return runImages();
+
   $('out').replaceChildren(skeleton());
+  $('side').replaceChildren();
 
   const data = await veil.search(query, page);
   const out = document.createDocumentFragment();
 
-  if (data.answer) out.append(renderAnswer(data.answer));
+  // Google puts this in a column of its own, and it reads better there: the
+  // results start at the top of the page instead of below a card.
+  $('side').replaceChildren(data.answer ? renderAnswer(data.answer) : '');
 
   if (!data.results.length) {
     out.append(renderEmpty(data));

@@ -44,12 +44,31 @@
     root.style.setProperty('--accent-ink', readableInk(a.accent));
     root.style.setProperty('--radius', (a.radius == null ? 12 : a.radius) + 'px');
 
+    // Blank means the theme's own blue; anything else is the user's choice.
+    if (a.linkColor) {
+      root.style.setProperty('--link', a.linkColor);
+      root.style.setProperty('--link-visited', a.linkColor);
+    } else {
+      root.style.removeProperty('--link');
+      root.style.removeProperty('--link-visited');
+    }
+
+    if (a.railColor) root.style.setProperty('--rail-bg', a.railColor);
+    else root.style.removeProperty('--rail-bg');
+
+    root.setAttribute('data-outline', a.outline === false ? '0' : '1');
+
     if (!document.body) return;
     ensureLayers();
 
     const bg = document.getElementById('veil-bg');
     const dim = document.getElementById('veil-bg-dim');
-    const base = a.bgColor || (a.theme === 'light' ? '#f2f4f7' : '#0b0e13');
+    // Every one of these falls back to the theme when it is blank, which is
+    // what makes the light theme actually light.
+    const light = a.theme === 'light';
+    const base = a.bgColor || (light ? '#f2f4f7' : '#0b0e13');
+    const gradA = a.bgGradientA || base;
+    const gradB = a.bgGradientB || (light ? '#e4e9f0' : '#131b26');
     root.style.setProperty('--bg', base);
 
     if (a.bgType === 'image' && a.bgImage) {
@@ -65,8 +84,8 @@
       bg.style.filter = a.bgBlur ? 'blur(' + a.bgBlur + 'px)' : '';
       bg.style.transform = a.bgBlur ? 'scale(1.04)' : '';
     } else if (a.bgType === 'gradient') {
-      bg.style.backgroundImage = 'linear-gradient(' + (a.bgGradientAngle || 160) + 'deg, ' +
-        (a.bgGradientA || base) + ', ' + (a.bgGradientB || base) + ')';
+      bg.style.backgroundImage =
+        'linear-gradient(' + (a.bgGradientAngle || 160) + 'deg, ' + gradA + ', ' + gradB + ')';
       bg.style.filter = '';
       bg.style.transform = '';
     } else {

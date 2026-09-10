@@ -385,3 +385,17 @@ html, body { overflow: hidden; background: transparent; }
   padding: 0 16px;
 }
 #chrome[data-chrome-mode="centre"] .omnibox input { font-size: 16px; }
+
+/* A favicon sits on top of the lettered square, which stays underneath as the
+   fallback for sites that have no icon or whose icon fails to load. */
+.fav { position: relative; overflow: hidden; }
+.fav img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: none;
+}
+.fav[data-icon="1"] img { display: block; }
+.fav[data-icon="1"] { background: transparent !important; color: transparent; }

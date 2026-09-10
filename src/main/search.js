@@ -127,6 +127,7 @@ function fetchText(url, session, opts = {}) {
     }
 
     for (const [k, v] of Object.entries(HEADERS)) req.setHeader(k, v);
+    for (const [k, v] of Object.entries(opts.headers || {})) req.setHeader(k, v);
     if (opts.body) req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
 
     req.on('response', (res) => {
@@ -145,6 +146,52 @@ function fetchText(url, session, opts = {}) {
     if (opts.body) req.write(opts.body);
     req.end();
   });
+}
+
+/* -------------------------------------------------------------------- images
+
+   DuckDuckGo's image endpoint needs a token it only hands out on the HTML page
+   for the same query, so this is two requests: one to be given the token, one
+   to use it. The token is per query and short lived, which is why it is not
+   worth caching beyond the run.                                              */
+
+async function ddgImages(query, session, page = 1) {
+  // The very first request a process makes can spend the whole budget waiting
+  // for the network stack to come up, which would make the first image search
+  // of a session fail for no reason the user could act on. One retry costs
+  // nothing when things are working and hides the cold start when they are not.
+  const tokenUrl = 'https://duckduckgo.com/?q=' + encodeURIComponent(query) + '&iax=images&ia=images';
+  let html;
+  try {
+    html = await fetchText(tokenUrl, session, { timeout: 9000 });
+  } catch {
+    html = await fetchText(tokenUrl, session, { timeout: 15000 });
+  }
+
+  const m = /vqd=["']?([-\w]+)["']?/.exec(html) || /vqd=([-\d]+)/.exec(html);
+  if (!m) throw new Error('no token');
+
+  const offset = (Math.max(1, page) - 1) * 50;
+  const url = 'https://duckduckgo.com/i.js?l=us-en&o=json&q=' + encodeURIComponent(query) +
+              '&vqd=' + encodeURIComponent(m[1]) + '&f=,,,&p=1&s=' + offset;
+
+  const body = await fetchText(url, session, {
+    headers: { 'Referer': 'https://duckduckgo.com/', 'Accept': 'application/json, text/javascript' }
+  });
+
+  let data;
+  try { data = JSON.parse(body); } catch { throw new Error('unreadable reply'); }
+  const list = Array.isArray(data.results) ? data.results : [];
+
+  return list.map(r => ({
+    title: String(r.title || '').slice(0, 200),
+    image: String(r.image || ''),
+    thumbnail: String(r.thumbnail || r.image || ''),
+    width: Number(r.width) || 0,
+    height: Number(r.height) || 0,
+    source: String(r.url || ''),
+    host: (() => { try { return new URL(r.url).hostname.replace(/^www\./, ''); } catch { return ''; } })()
+  })).filter(r => /^https:/i.test(r.thumbnail) && /^https?:/i.test(r.source));
 }
 
 /* ------------------------------------------------------------------ backends */
@@ -407,6 +454,20 @@ class SearchEngine {
       ? (this.settings.get('search.customUrl') || DIRECT_ENGINES.duckduckgo)
       : (DIRECT_ENGINES[engine] || DIRECT_ENGINES.duckduckgo);
     return tpl.replace('%s', encodeURIComponent(query));
+  }
+
+  /** Image results, kept apart from the web ones: a different shape entirely. */
+  async images(query, page = 1) {
+    const q = String(query || '').trim();
+    if (!q) return { query: q, page: 1, results: [], error: '' };
+    const started = Date.now();
+    try {
+      const results = await ddgImages(q, this.session, page);
+      return { query: q, page, results, took: Date.now() - started, error: '' };
+    } catch (e) {
+      return { query: q, page, results: [], took: Date.now() - started,
+               error: 'Image search did not answer (' + (e.message || 'failed') + ')' };
+    }
   }
 
   urlForQuery(query) {

@@ -49,6 +49,27 @@
       </div>
 
       <div class="row">
+        <div class="info"><label>Links</label><small>Blank follows the theme, which is blue.</small></div>
+        <div class="ctl">
+          <input type="color" data-bind="appearance.linkColor">
+          <input type="text" data-bind="appearance.linkColor" style="width:104px" spellcheck="false" placeholder="theme">
+        </div>
+      </div>
+
+      <div class="row" data-when="appearance.tabLayout=side">
+        <div class="info"><label>Tab bar colour</label><small>Blank matches the rest of the chrome.</small></div>
+        <div class="ctl">
+          <input type="color" data-bind="appearance.railColor">
+          <input type="text" data-bind="appearance.railColor" style="width:104px" spellcheck="false" placeholder="match">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="info"><label>Outline controls</label><small>A hard edge on the address bar, buttons and panels, so they stay visible whatever you set the background to.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="appearance.outline"></button></div>
+      </div>
+
+      <div class="row">
         <div class="info"><label>Background</label></div>
         <div class="ctl">
           <select data-bind="appearance.bgType">

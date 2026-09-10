@@ -62,11 +62,34 @@ function hydrate(skipFocused) {
     } else if (el.type === 'range' || el.type === 'number') {
       el.value = Number(value);
       showVal(el, path, value);
+    } else if (el.type === 'color') {
+      // Several of these mean "follow the theme" when they are blank, and a
+      // colour input cannot hold blank - it rejects the value and complains.
+      // The swatch shows what the theme is currently using; the text field
+      // beside it is what stays empty.
+      el.value = (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value))
+        ? value : themeColourFor(path);
     } else {
       el.value = value == null ? '' : String(value);
     }
   }
   refreshConditionals();
+}
+
+/** What a blank colour setting is actually showing right now. */
+function themeColourFor(path) {
+  const token = {
+    'appearance.linkColor': '--link',
+    'appearance.railColor': '--rail-bg',
+    'appearance.bgColor': '--bg',
+    'appearance.bgGradientA': '--bg',
+    'appearance.bgGradientB': '--bg',
+    'appearance.accent': '--accent'
+  }[path];
+  if (!token) return '#000000';
+  const live = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+  // Only hex is any use to a colour input; anything else falls back to black.
+  return /^#[0-9a-f]{6}$/i.test(live) ? live : '#000000';
 }
 
 /* The readout beside a slider. This has to be driven from the input event as

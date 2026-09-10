@@ -14,14 +14,17 @@ function findVpn() {
 }
 
 const DEFAULTS = {
-  version: 2,
+  version: 3,
   appearance: {
     theme: 'dark',                 // dark | light
     accent: '#7dd3a0',
     bgType: 'gradient',            // solid | gradient | image
-    bgColor: '#0b0e13',
-    bgGradientA: '#0b0e13',
-    bgGradientB: '#131b26',
+    // Blank means "whatever the theme says". Storing the dark hexes here was
+    // what broke light mode: the theme switched but the background did not,
+    // because a value was always set and it was always the dark one.
+    bgColor: '',
+    bgGradientA: '',
+    bgGradientB: '',
     bgGradientAngle: 160,
     bgImage: '',                   // absolute file path or https URL
     bgFit: 'cover',                // cover | contain | tile | center
@@ -39,7 +42,10 @@ const DEFAULTS = {
     greeting: '',
     showClock: true,
     showStats: true,
-    showShortcuts: false           // they live in the tab rail now; this is the start page's copy
+    showShortcuts: false,          // they live in the tab rail now; this is the start page's copy
+    linkColor: '',                 // blank = the theme's blue
+    railColor: '',                 // blank = the same surface as the rest of the chrome
+    outline: true                  // a hard edge on controls, so any background stays usable
   },
   search: {
     engine: 'veil',                // veil | duckduckgo | mojeek | startpage | brave | wikipedia | custom
@@ -169,6 +175,18 @@ function clone(v) { return JSON.parse(JSON.stringify(v)); }
  */
 function migrate(data) {
   let changed = false;
+  if (data.version === 2) {
+    // The dark background hexes used to be written into every profile, which
+    // meant switching to the light theme changed the text and left the page
+    // black. Clearing the ones that match the old defaults hands them back to
+    // the theme; anything the user actually chose is left alone.
+    const a = data.appearance || (data.appearance = {});
+    if (a.bgColor === '#0b0e13') a.bgColor = '';
+    if (a.bgGradientA === '#0b0e13') a.bgGradientA = '';
+    if (a.bgGradientB === '#131b26') a.bgGradientB = '';
+    data.version = 3;
+    changed = true;
+  }
   if (!data.version || data.version < 2) {
     const p = data.privacy || (data.privacy = {});
     if (p.retention === undefined) p.retention = 'keep';

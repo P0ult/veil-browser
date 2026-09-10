@@ -5,6 +5,20 @@
   --accent-ink: #06120c;
   --radius: 12px;
 
+  /* Links are blue because that is what a link looks like. The accent is a
+     brand colour and changes; this does not have to follow it. */
+  --link: #6aa9ff;
+  --link-visited: #b08ff0;
+
+  /* A hard edge that stays visible whatever the background is set to. The
+     accent, the surfaces and the borders are all translucent or tinted, so
+     none of them can be relied on once someone picks a strong colour. */
+  --outline: rgba(0, 0, 0, 0.55);
+  --outline-strong: rgba(0, 0, 0, 0.8);
+
+  /* The tab rail's own surface, so it can be coloured independently. */
+  --rail-bg: var(--bg);
+
   --bg: #0b0e13;
   --surface: rgba(255, 255, 255, 0.055);
   --surface-2: rgba(255, 255, 255, 0.09);
@@ -28,6 +42,11 @@
 }
 
 :root[data-theme="light"] {
+  --link: #1a5fd0;
+  --link-visited: #6b3fa0;
+  --outline: rgba(15, 22, 33, 0.42);
+  --outline-strong: rgba(15, 22, 33, 0.7);
+
   --bg: #f2f4f7;
   --surface: rgba(15, 22, 33, 0.045);
   --surface-2: rgba(15, 22, 33, 0.075);
@@ -119,7 +138,46 @@ button:disabled { opacity: 0.32; cursor: default; }
   outline-offset: 2px;
 }
 
-a { color: var(--accent); text-decoration: none; }
+a { color: var(--link); text-decoration: none; }
+a:visited { color: var(--link-visited); }
+a:hover { text-decoration: underline; }
+
+/* Controls keep a hard edge of their own so that a background colour cannot
+   swallow them. Without this, setting the background to something strong left
+   the address bar invisible against it. */
+:root[data-outline="1"] .omnibox,
+:root[data-outline="1"] input[type="text"],
+:root[data-outline="1"] input[type="number"],
+:root[data-outline="1"] input[type="url"],
+:root[data-outline="1"] input[type="search"],
+:root[data-outline="1"] select,
+:root[data-outline="1"] textarea,
+:root[data-outline="1"] .btn,
+:root[data-outline="1"] .card,
+:root[data-outline="1"] .chip {
+  border-color: var(--outline);
+}
+:root[data-outline="1"] .omnibox { box-shadow: 0 0 0 1px var(--outline); }
 a:hover { text-decoration: underline; }
 
 .icon { width: 17px; height: 17px; display: block; stroke-width: 1.9; }
+
+/* ------------------------------------------------------------- the mark
+
+   The logo is a silhouette carried as an alpha mask rather than a picture, so
+   it takes whatever colour is drawing it - the accent in the chrome, the text
+   colour on a page, and the right one of those in either theme. A flat PNG
+   would have brought its own black or white square along with it. */
+
+.veil-mark {
+  display: inline-block;
+  background-color: currentColor;
+  -webkit-mask-image: url("veil-mark.png");
+  mask-image: url("veil-mark.png");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}

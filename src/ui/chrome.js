@@ -104,6 +104,39 @@ function makeTab(id) {
   return { root, fav, title, close };
 }
 
+
+/* The site's own icon, laid over the lettered square.
+ *
+ * The letter is always drawn underneath, so a site with no icon, an icon that
+ * fails to load, or one that has not arrived yet still shows something
+ * recognisable rather than a blank. Icons are fetched without credentials and
+ * without a referrer: a favicon should not be a way to be counted. */
+function setFavicon(refs, t) {
+  const wanted = (!t.loading && !t.url.startsWith('veil://') && t.favicon) ? t.favicon : '';
+  if (!wanted) {
+    if (refs.img) { refs.img.remove(); refs.img = null; }
+    delete refs.fav.dataset.icon;
+    return;
+  }
+  if (!refs.img) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.referrerPolicy = 'no-referrer';
+    img.crossOrigin = 'anonymous';
+    img.addEventListener('load', () => { refs.fav.dataset.icon = '1'; });
+    img.addEventListener('error', () => {
+      delete refs.fav.dataset.icon;
+      if (refs.img) { refs.img.remove(); refs.img = null; }
+    });
+    refs.img = img;
+    refs.fav.append(img);
+  }
+  if (refs.img.getAttribute('src') !== wanted) {
+    delete refs.fav.dataset.icon;
+    refs.img.setAttribute('src', wanted);
+  }
+}
+
 function updateTab(refs, t, active) {
   refs.root.classList.toggle('active', active);
 
@@ -127,8 +160,14 @@ function updateTab(refs, t, active) {
     bg = 'hsl(' + hue(host) + ' 58% 62%)';
   }
   if (refs.fav.className !== cls) refs.fav.className = cls;
-  if (refs.fav.textContent !== text) refs.fav.textContent = text;
+  // textContent would take the favicon <img> with it, so only the label moves.
+  if (refs.fav.firstChild && refs.fav.firstChild.nodeType === 3) {
+    if (refs.fav.firstChild.nodeValue !== text) refs.fav.firstChild.nodeValue = text;
+  } else {
+    refs.fav.prepend(document.createTextNode(text));
+  }
   if (refs.fav.style.background !== bg) refs.fav.style.background = bg;
+  setFavicon(refs, t);
 }
 
 function renderTabs() {

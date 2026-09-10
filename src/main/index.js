@@ -122,7 +122,11 @@ function broadcastSettings() {
    same whether the tabs are on top or down the side.                        */
 
 const HOVER_BAND = 26;      // how near an edge counts as reaching
-const HOVER_POLL = 80;      // ms; imperceptible, and far cheaper than it sounds
+// How often the cursor is looked at. This is dead time before the chrome even
+// begins to move, so it is the part a user feels as lag rather than as
+// animation. 25ms costs nothing measurable and takes the delay below the
+// threshold where it reads as a pause.
+const HOVER_POLL = 25;
 let hoverTimer = null;
 let hoverState = null;
 
@@ -228,7 +232,7 @@ function raiseChrome() {
    documents: nothing here relayouts a page, so a frame costs almost nothing.
    The page is untouched throughout - that is what floating buys.           */
 
-const SLIDE_MS = 190;
+const SLIDE_MS = 130;       // long enough to read as motion, short enough not to wait on
 let slideTimer = null;
 let wantToolbar = 1, wantRail = 1;
 
@@ -243,7 +247,7 @@ function slideChrome() {
     railShown = fromRail + (wantRail - fromRail) * eased;
     relayout();
     if (p >= 1) { clearInterval(slideTimer); slideTimer = null; }
-  }, 16);
+  }, 8);       // ~120Hz: the views are rectangles, so frames are nearly free
 }
 
 function showChrome(part, on) {
@@ -575,6 +579,7 @@ function createWindow() {
     frame: false,
     show: false,
     backgroundColor: settings.get('appearance.theme') === 'light' ? '#f4f5f7' : '#0b0e13',
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.ico'),
     title: 'Veil'
   });
   try { win.setMenuBarVisibility(false); win.setAutoHideMenuBar(true); } catch {}
@@ -858,6 +863,10 @@ function wireIpc() {
         errors: [err.message], took: 0, fallbackUrl: searchEngine.externalUrl(q)
       };
     }
+  }));
+
+  ipcMain.handle('search:images', guard(async (e, q, page) => {
+    return searchEngine.images(String(q || ''), Math.max(1, Number(page) || 1));
   }));
 
   ipcMain.handle('search:url-for', guard((e, q) => searchEngine.urlForQuery(String(q || ''))));

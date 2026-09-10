@@ -28,8 +28,15 @@ function edgesReached(p) {
   if (x < 0 || y < 0 || x >= width || y >= height) return out;   // not over the window
 
   const band = p.band > 0 ? p.band : 0;
-  out.top = y < Math.max(p.top || 0, band);
-  out.left = x < Math.max(p.left || 0, band);
+  const top = Math.max(p.top || 0, band);
+  out.top = y < top;
+
+  // The top-left corner belongs to the toolbar, not the rail. Back, forward
+  // and reload sit exactly there, and a rail that slid out over them made
+  // them unclickable - you could see the button and never reach it. Inside
+  // the toolbar's own band, only the toolbar answers.
+  const overToolbar = out.top && (p.top || 0) > 0;
+  out.left = !overToolbar && x < Math.max(p.left || 0, band);
   return out;
 }
 
