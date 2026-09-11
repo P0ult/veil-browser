@@ -91,17 +91,21 @@ const DEFAULTS = {
   adblock: {
     customBlock: [],
     allowlist: [],
-    // The first five ship inside Veil and are on by default: they are the
-    // lists uBlock Origin uses by default too. `file` names the copy that
+    // The first seven ship inside Veil and are on by default: they are the
+    // set uBlock Origin uses by default too. `file` names the copy that
     // shipped; `url` is where a fresher one comes from, and once one has been
-    // downloaded it is used instead. The rest are hostname lists, off by
-    // default because they overlap heavily with what is already here.
+    // downloaded it is used instead. "Quick fixes" is the one to keep current
+    // - it is where uBlock publishes its answer each time YouTube changes how
+    // it delivers adverts. The last three are hostname lists, off by default
+    // because they overlap heavily with what is already here.
     lists: [
       { name: 'EasyList', file: 'easylist.txt', url: 'https://easylist.to/easylist/easylist.txt', enabled: true },
       { name: 'EasyPrivacy', file: 'easyprivacy.txt', url: 'https://easylist.to/easylist/easyprivacy.txt', enabled: true },
       { name: 'uBlock Origin filters', file: 'ubo-filters.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt', enabled: true },
       { name: 'uBlock Origin privacy', file: 'ubo-privacy.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/privacy.txt', enabled: true },
       { name: 'uBlock Origin badware', file: 'ubo-badware.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/badware.txt', enabled: true },
+      { name: 'uBlock Origin quick fixes', file: 'ubo-quick-fixes.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/quick-fixes.txt', enabled: true },
+      { name: 'uBlock Origin unbreak', file: 'ubo-unbreak.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/unbreak.txt', enabled: true },
       { name: 'StevenBlack unified hosts', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts', enabled: false },
       { name: 'AdGuard DNS filter', url: 'https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt', enabled: false },
       { name: 'Peter Lowe ad servers', url: 'https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext', enabled: false }

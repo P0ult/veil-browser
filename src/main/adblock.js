@@ -19,13 +19,23 @@ const { FilterEngine } = require('./filters');
  * them apart means pausing a site is instant instead of rebuilding everything.
  */
 
-/** The lists that ship inside the app, and where to get a fresher copy. */
+/**
+ * The lists that ship inside the app, and where to get a fresher copy.
+ *
+ * These are uBlock Origin's own default set. "Quick fixes" is the one that
+ * matters most for YouTube: it is where uBlock publishes its counter-measures
+ * as YouTube changes how it delivers adverts, and it changes far more often
+ * than the others - which is why "Update lists" is worth pressing. "Unbreak"
+ * is the list of exceptions that stops the rest of them breaking sites.
+ */
 const BUNDLED = [
   { name: 'EasyList', file: 'easylist.txt', url: 'https://easylist.to/easylist/easylist.txt' },
   { name: 'EasyPrivacy', file: 'easyprivacy.txt', url: 'https://easylist.to/easylist/easyprivacy.txt' },
   { name: 'uBlock Origin filters', file: 'ubo-filters.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt' },
   { name: 'uBlock Origin privacy', file: 'ubo-privacy.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/privacy.txt' },
-  { name: 'uBlock Origin badware', file: 'ubo-badware.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/badware.txt' }
+  { name: 'uBlock Origin badware', file: 'ubo-badware.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/badware.txt' },
+  { name: 'uBlock Origin quick fixes', file: 'ubo-quick-fixes.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/quick-fixes.txt' },
+  { name: 'uBlock Origin unbreak', file: 'ubo-unbreak.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/unbreak.txt' }
 ];
 
 class AdBlock {

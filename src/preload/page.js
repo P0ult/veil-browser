@@ -349,7 +349,7 @@ function runScriptlets(list) {
   const pathList = (text) => String(text || '')
     .split(/\s+/)
     .map(p => p.trim())
-    .filter(p => p && p !== 'important');
+    .filter(p => p && p !== 'important' && p !== 'legacyImportant');
 
   /* -------------------------------------------------------------- the set */
 
