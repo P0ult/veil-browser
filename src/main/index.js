@@ -1247,10 +1247,25 @@ if (!gotLock) {
     });
 
     // The tunnel can be backed by the system VPN app, so it needs that first.
+    // A tunnel that cannot start used to say so only in the toolbar tooltip,
+    // which is a place nobody looks: the pill read "Tunnel off" and the reason
+    // sat behind a hover. Both of the states that mean "your traffic is not
+    // going where you asked" now say it out loud, once per transition.
+    let lastTunnelState = '';
     tunnel = new Tunnel(settings, (status) => {
       broadcast('veil:tunnel', status);
+      const changed = status.state !== lastTunnelState;
+      lastTunnelState = status.state;
+      if (!changed) return;
+
       if (status.state === 'blocked') {
         sendChrome('veil:toast', { kind: 'warn', text: status.detail });
+      } else if (status.state === 'error') {
+        sendChrome('veil:toast', {
+          kind: 'warn',
+          text: 'The tunnel could not start: ' + (status.detail || 'no reason given') +
+                ' — browsing is going out directly.'
+        });
       }
     }, vpn);
     applyTunnelSessions();

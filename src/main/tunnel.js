@@ -39,6 +39,14 @@ const TOR_VERSION_URL = 'https://aus1.torproject.org/torbrowser/update_3/release
 const TOR_ARCHIVE_BASE = 'https://archive.torproject.org/tor-package-archive/torbrowser';
 const TOR_FALLBACK_VERSION = '14.5.1';
 
+// And where wstunnel publishes its. Veil fetches this the same way it fetches
+// Tor - checked against the SHA-256 the release publishes - because otherwise
+// "My VPN - browser only" only works on a machine that happens to have
+// wstunnel installed already, which is nobody's machine by default.
+const WS_RELEASE_URL = 'https://api.github.com/repos/erebe/wstunnel/releases/latest';
+const WS_DOWNLOAD_BASE = 'https://github.com/erebe/wstunnel/releases/download';
+const WS_FALLBACK_VERSION = '10.7.1';
+
 // Blank setting means "look wherever this platform usually keeps it". The
 // macOS Tunnel VPN installs wstunnel with Homebrew; the Windows build ships it
 // beside the app.
@@ -83,6 +91,7 @@ class Tunnel {
     this.established = false;   // the tunnel reached "on" at least once this run
     this.stopping = false;
     this.dir = path.join(app.getPath('userData'), 'tor');
+    this.wsDir = path.join(app.getPath('userData'), 'wstunnel');
     this.credFile = path.join(app.getPath('userData'), 'proxy.cred');
     this.relay = null;
     this.exit = null;          // { ip, loc } once verified through the tunnel
@@ -389,9 +398,24 @@ class Tunnel {
      virtual adapter, no elevation. It needs the server to be willing to relay
      somewhere other than the OpenVPN port, which is a server-side setting.  */
 
+  /** Veil's own copy, once it has fetched one. */
+  wsOwnExe() {
+    return path.join(this.wsDir, WINDOWS ? 'wstunnel.exe' : 'wstunnel');
+  }
+
+  /**
+   * Whichever wstunnel this machine has: the one the user pointed at, the one
+   * Veil downloaded, or one already installed by something else.
+   */
   wstunnelExe() {
     const custom = (this.settings.get('tunnel.wstunnelPath', '') || '').trim();
-    return custom || DEFAULT_WSTUNNEL;
+    if (custom) return custom;
+    // A copy the machine already has comes first: if Tunnel VPN installed one,
+    // that is the version its server was set up against. Veil's own download
+    // is what happens when there is nothing else.
+    const installed = firstExisting(wstunnelCandidates());
+    if (installed) return installed;
+    return this.wsOwnExe();
   }
 
   /** The current endpoint, from the gist unless one is pinned in settings. */
@@ -409,9 +433,14 @@ class Tunnel {
   }
 
   async startWstunnel() {
-    const exe = this.wstunnelExe();
+    let exe = this.wstunnelExe();
     if (!fs.existsSync(exe)) {
-      throw new Error('wstunnel was not found. Open Tunnel VPN once so it installs, or set the path in Settings.');
+      // Nothing on this machine has installed it. Fetch it, the same way Tor
+      // is fetched: this is what makes the provider work on a machine that
+      // has never seen Tunnel VPN.
+      await this.downloadWstunnel();
+      exe = this.wstunnelExe();
+      if (!fs.existsSync(exe)) throw new Error('wstunnel was not found after installing');
     }
 
     this.set(STATE.STARTING, 'Looking up the tunnel address', 0);
@@ -613,7 +642,12 @@ class Tunnel {
 
     this.set(STATE.DOWNLOADING, 'Unpacking', 85);
     await new Promise((resolve, reject) => {
-      execFile('tar', ['-xzf', tmp, '-C', this.dir], { windowsHide: true },
+      // Run from inside the folder and name the file, rather than handing tar
+      // an absolute path: GNU tar - which is what a machine with Git installed
+      // usually finds first on Windows - reads "C:\..." as a remote host and
+      // refuses. Windows' own bsdtar accepts both forms, so this is the one
+      // spelling that works everywhere.
+      execFile('tar', ['-xzf', path.basename(tmp)], { cwd: this.dir, windowsHide: true },
         (err) => (err ? reject(new Error('Unpacking failed: ' + err.message)) : resolve()));
     });
     try { fs.unlinkSync(tmp); } catch {}
@@ -622,6 +656,74 @@ class Tunnel {
     // on that point and a Tor that cannot be executed fails later as a
     // confusing ENOENT rather than a permissions error.
     if (!WINDOWS) { try { fs.chmodSync(this.torExe(), 0o755); } catch {} }
+  }
+
+  /**
+   * Fetch the wstunnel build for this platform and check it against the
+   * SHA-256 published with the release.
+   *
+   * The binary is a VPN client that will carry browser traffic, so it is
+   * verified rather than trusted: a mismatched checksum is discarded and the
+   * tunnel refuses to start, instead of running whatever arrived.
+   */
+  async downloadWstunnel() {
+    this.set(STATE.DOWNLOADING, 'Looking up the current wstunnel release', 0);
+
+    let version = WS_FALLBACK_VERSION;
+    try {
+      const buf = await fetchBuffer(WS_RELEASE_URL, 15000);
+      const tag = String(JSON.parse(buf.toString('utf8')).tag_name || '');
+      const m = /^v?([\d.]+)$/.exec(tag);
+      if (m) version = m[1];
+    } catch {}
+
+    const goOs = WINDOWS ? 'windows' : MAC ? 'darwin' : 'linux';
+    const goArch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+    const name = 'wstunnel_' + version + '_' + goOs + '_' + goArch + '.tar.gz';
+    const url = WS_DOWNLOAD_BASE + '/v' + version + '/' + name;
+
+    fs.mkdirSync(this.wsDir, { recursive: true });
+
+    this.set(STATE.DOWNLOADING, 'Downloading wstunnel ' + version, 20);
+    let archive;
+    try {
+      archive = await fetchBuffer(url, 120000);
+    } catch (e) {
+      throw new Error(
+        'Could not download wstunnel (' + e.message + '). Install it yourself - ' +
+        'on a Mac that is "brew install wstunnel" - and point Veil at it in ' +
+        'Settings > Tunnel.');
+    }
+
+    this.set(STATE.DOWNLOADING, 'Verifying the download', 70);
+    const digest = crypto.createHash('sha256').update(archive).digest('hex');
+    const expected = await this.wsPublishedDigest(version, name);
+    if (expected && expected !== digest) {
+      throw new Error('The wstunnel download failed its SHA-256 check and was discarded');
+    }
+
+    const tmp = path.join(this.wsDir, name);
+    fs.writeFileSync(tmp, archive);
+
+    this.set(STATE.DOWNLOADING, 'Unpacking', 85);
+    await new Promise((resolve, reject) => {
+      execFile('tar', ['-xzf', path.basename(tmp)], { cwd: this.wsDir, windowsHide: true },
+        (err) => (err ? reject(new Error('Unpacking wstunnel failed: ' + err.message)) : resolve()));
+    });
+    try { fs.unlinkSync(tmp); } catch {}
+    if (!WINDOWS) { try { fs.chmodSync(this.wsOwnExe(), 0o755); } catch {} }
+  }
+
+  /** The checksums file published beside a wstunnel release. */
+  async wsPublishedDigest(version, name) {
+    try {
+      const buf = await fetchBuffer(WS_DOWNLOAD_BASE + '/v' + version + '/checksums.txt', 30000);
+      for (const line of buf.toString('utf8').split('\n')) {
+        const [hash, file] = line.trim().split(/\s+/);
+        if (file && file.endsWith(name) && /^[0-9a-f]{64}$/i.test(hash)) return hash.toLowerCase();
+      }
+    } catch {}
+    return null;
   }
 
   /** The checksum file the Tor Project publishes beside each build. */

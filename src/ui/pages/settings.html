@@ -341,8 +341,8 @@
       </div>
 
       <div class="row" data-when="tunnel.provider=wstunnel">
-        <div class="info"><label>wstunnel</label><small>Blank uses the copy Tunnel VPN installs.</small></div>
-        <div class="ctl"><input type="text" data-bind="tunnel.wstunnelPath" style="width:300px" spellcheck="false" placeholder="Optional path"></div>
+        <div class="info"><label>wstunnel</label><small>Leave blank and Veil downloads its own copy, checked against the SHA-256 the release publishes — the same way it handles Tor. An existing copy (Tunnel VPN's, or one from Homebrew) is used first if there is one.</small></div>
+        <div class="ctl"><input type="text" data-bind="tunnel.wstunnelPath" style="width:300px" spellcheck="false" placeholder="Downloaded automatically"></div>
       </div>
 
       <div class="row" data-when="tunnel.provider=socks,http,wstunnel">

@@ -415,13 +415,16 @@ $('toast-close').addEventListener('click', () => { clearTimeout(toastTimer); els
 
 /* -------------------------------------------------------------------- vpn */
 
+/* "Tunnel off" used to be the label for a tunnel that had *tried and failed*,
+   which is indistinguishable from one that is simply not on - so a tunnel that
+   could not start looked like a tunnel that had refused to. It says so now. */
 const TUNNEL_LABEL = {
   off: 'Direct',
   downloading: 'Setting up',
   starting: 'Starting',
   bootstrapping: 'Connecting',
   on: 'Tunnel on',
-  error: 'Tunnel off',
+  error: 'Tunnel failed',
   blocked: 'Blocked'
 };
 

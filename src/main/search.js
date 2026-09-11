@@ -671,37 +671,39 @@ async function ddgHtml(query, session) {
   return { results: out, next: null };
 }
 
-/** Marginalia indexes the non-commercial web, so it surfaces different pages. */
+/**
+ * Marginalia indexes the non-commercial web, so it surfaces different pages.
+ *
+ * This asks its public JSON API rather than reading its results page. The
+ * scraper this replaces had stopped returning anything at all - Marginalia
+ * redesigned its site and the markup the parser looked for is no longer there
+ * - so one of Veil's two default engines had been silently contributing
+ * nothing. An API cannot be redecorated out from under us, and this one is
+ * offered for exactly this purpose.
+ *
+ * The public key is rate limited and first-page only, which is why deeper
+ * pages return nothing rather than repeating page one.
+ */
 async function marginalia(query, session, page = 1) {
-  const hosts = ['https://old-search.marginalia.nu', 'https://marginalia-search.com'];
-  const suffix = '/search?query=' + encodeURIComponent(query) + (page > 1 ? '&page=' + page : '');
-  let html = null;
-  let lastErr = null;
-  for (const host of hosts) {
-    try { html = await fetchText(host + suffix, session, { timeout: 8000 }); break; }
-    catch (e) { lastErr = e; }
-  }
-  if (html == null) throw lastErr || new Error('unreachable');
+  if (page > 1) return [];
 
-  const out = [];
-  for (const sec of eachTag(html, 'section')) {
-    if (!hasClass(sec.attrs, 'search-result')) continue;
-    let url = '';
-    let title = '';
-    for (const a of eachTag(sec.inner, 'a')) {
-      if (!hasClass(a.attrs, 'title')) continue;
-      url = decodeEntities(attrOf(a.attrs, 'href'));
-      title = stripTags(a.inner);
-      break;
-    }
-    if (!/^https?:\/\//i.test(url) || !title) continue;
-    let snippet = '';
-    for (const p of eachTag(sec.inner, 'p')) {
-      if (hasClass(p.attrs, 'description')) { snippet = stripTags(p.inner); break; }
-    }
-    out.push({ title, url, snippet, source: 'marginalia' });
-  }
-  return out;
+  const url = 'https://api.marginalia.nu/public/search/' + encodeURIComponent(query);
+  const body = await fetchText(url, session, {
+    timeout: 8000,
+    headers: { 'Accept': 'application/json' }
+  });
+
+  let data;
+  try { data = JSON.parse(body); } catch { throw new Error('unreadable reply'); }
+
+  return (Array.isArray(data.results) ? data.results : [])
+    .map(r => ({
+      title: decodeHtml(r.title || '').slice(0, 200),
+      url: String(r.url || ''),
+      snippet: decodeHtml(r.description || '').slice(0, 400),
+      source: 'marginalia'
+    }))
+    .filter(r => /^https?:/i.test(r.url) && r.title);
 }
 
 /** Mojeek also runs an independent crawler, but usually demands a bot check. */
