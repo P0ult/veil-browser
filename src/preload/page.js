@@ -167,6 +167,323 @@ function installDefences(seed, cfg) {
 }
 
 
+/* -------------------------------------------------------- scriptlets
+
+   Some adverts cannot be blocked by refusing a request or hiding an element.
+   YouTube's are the standard case: the advert is described inside the same
+   JSON the player needs to play the video, fetched from the same address as
+   the video itself. There is no request to cancel that does not also cancel
+   the video, and by the time there is an element to hide the advert is
+   already playing.
+
+   So the filter lists carry small functions - uBlock Origin calls them
+   scriptlets - that run before the page's own scripts and change what the
+   page's code sees. `+js(set, ytInitialPlayerResponse.adPlacements, undefined)`
+   means: when YouTube's own code reads the list of adverts to play, it finds
+   nothing there.
+
+   These run in the page's own world, so like the fingerprinting defences they
+   can only use what `args` hands them.                                      */
+
+function runScriptlets(list) {
+  if (window.__veilScriptlets) return;
+  try { Object.defineProperty(window, '__veilScriptlets', { value: true, enumerable: false }); } catch {}
+
+  /* ------------------------------------------------------------- helpers */
+
+  const asRegex = (text, forceGlobal) => {
+    const m = /^\/(.+)\/([a-z]*)$/s.exec(text || '');
+    if (m) {
+      let flags = m[2] || '';
+      if (forceGlobal && !flags.includes('g')) flags += 'g';
+      try { return new RegExp(m[1], flags); } catch { return null; }
+    }
+    const escaped = String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    try { return new RegExp(escaped, forceGlobal ? 'g' : ''); } catch { return null; }
+  };
+
+  /** Does this request address match what the rule was written for? */
+  const urlMatches = (url, pattern) => {
+    if (!pattern || pattern === '*') return true;
+    const re = /^\/.+\/[a-z]*$/s.test(pattern) ? asRegex(pattern, false) : null;
+    if (re) return re.test(url);
+    if (pattern.includes('*')) {
+      const parts = pattern.split('*').map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      try { return new RegExp(parts.join('.*')).test(url); } catch { return false; }
+    }
+    return String(url).includes(pattern);
+  };
+
+  /** The address a fetch() call is asking for, whatever shape it was given. */
+  const urlOf = (input) => {
+    try {
+      if (typeof input === 'string') return input;
+      if (input instanceof URL) return input.href;
+      if (input && typeof input.url === 'string') return input.url;
+    } catch {}
+    return '';
+  };
+
+  /** A rule's url: argument, wherever it appears among the arguments. */
+  const urlArg = (args, fallbackIndex) => {
+    for (const a of args) {
+      if (typeof a === 'string' && a.startsWith('url:')) return a.slice(4);
+    }
+    const f = args[fallbackIndex];
+    return f && f !== 'propsToMatch' ? f : '';
+  };
+
+  const VALUES = {
+    'undefined': undefined, 'false': false, 'true': true, 'null': null,
+    'emptyStr': '', 'emptyObj': {}, 'emptyArr': [],
+    'noopFunc': function () {}, 'trueFunc': function () { return true; },
+    'falseFunc': function () { return false; }
+  };
+
+  const literal = (raw) => {
+    if (raw in VALUES) return VALUES[raw];
+    if (raw === '') return '';
+    if (/^-?\d+$/.test(raw)) return parseInt(raw, 10);
+    return raw;
+  };
+
+  /* ------------------------------------------------------- set-constant
+
+     Define a property that always reads as the given value. The hard part is
+     that the property usually does not exist yet - YouTube assigns
+     `ytInitialPlayerResponse` from an inline script further down the page - so
+     where the chain is not there, the *assignment* is intercepted and the
+     final property is pinned on whatever object the page puts there. */
+
+  const pending = new WeakMap();      // owner -> Map(head -> { held, waiting })
+
+  const pin = (owner, chain, value) => {
+    const dot = chain.indexOf('.');
+
+    if (dot === -1) {
+      try {
+        Object.defineProperty(owner, chain, {
+          configurable: true,
+          get: () => value,
+          set: () => {}          // the page may try to put the adverts back
+        });
+      } catch {}
+      return;
+    }
+
+    const head = chain.slice(0, dot);
+    const rest = chain.slice(dot + 1);
+    const current = owner[head];
+
+    if (current && (typeof current === 'object' || typeof current === 'function')) {
+      pin(current, rest, value);
+      return;
+    }
+
+    /* Three rules pin three different properties of the same object, and the
+       object does not exist yet - so all three have to share one interceptor.
+       Installing a fresh one per rule silently replaced the one before it, and
+       only the last rule of the three survived: adSlots went and adPlacements
+       stayed, which is most of an advert. */
+    let table = pending.get(owner);
+    if (!table) { table = new Map(); pending.set(owner, table); }
+
+    const entry = table.get(head);
+    if (entry) {
+      entry.waiting.push({ rest, value });
+      if (entry.held && (typeof entry.held === 'object' || typeof entry.held === 'function')) {
+        try { pin(entry.held, rest, value); } catch {}
+      }
+      return;
+    }
+
+    const fresh = { held: current, waiting: [{ rest, value }] };
+    table.set(head, fresh);
+    try {
+      Object.defineProperty(owner, head, {
+        configurable: true,
+        get: () => fresh.held,
+        set: (v) => {
+          fresh.held = v;
+          if (v && (typeof v === 'object' || typeof v === 'function')) {
+            for (const w of fresh.waiting) {
+              try { pin(v, w.rest, w.value); } catch {}
+            }
+          }
+        }
+      });
+    } catch {}
+  };
+
+  /* ----------------------------------------------------------- json-prune */
+
+  const prunePath = (obj, path) => {
+    const parts = path.split('.');
+    let cur = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (cur == null) return;
+      if (part === '[-]') {
+        if (!Array.isArray(cur)) return;
+        const rest = parts.slice(i + 1).join('.');
+        for (const item of cur) prunePath(item, rest);
+        return;
+      }
+      cur = cur[part];
+    }
+    const last = parts[parts.length - 1];
+    if (cur && typeof cur === 'object') {
+      if (last === '[-]' && Array.isArray(cur)) cur.length = 0;
+      else delete cur[last];
+    }
+  };
+
+  const pruneAll = (obj, paths) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    for (const p of paths) {
+      try { prunePath(obj, p); } catch {}
+    }
+    return obj;
+  };
+
+  const pathList = (text) => String(text || '')
+    .split(/\s+/)
+    .map(p => p.trim())
+    .filter(p => p && p !== 'important');
+
+  /* -------------------------------------------------------------- the set */
+
+  const jsonPrunePaths = [];       // applied to every JSON.parse on the page
+  const fetchRules = [];           // { kind, ... } applied to fetch responses
+  const xhrRules = [];
+
+  for (const sc of list) {
+    const name = sc.name;
+    const args = sc.args || [];
+    try {
+      if (name === 'set' || name === 'set-constant') {
+        if (args[0]) pin(window, args[0], literal(args.length > 1 ? args[1] : 'undefined'));
+
+      } else if (name === 'json-prune') {
+        for (const p of pathList(args[0])) jsonPrunePaths.push(p);
+
+      } else if (name === 'json-prune-fetch-response') {
+        fetchRules.push({ kind: 'prune', paths: pathList(args[0]), url: urlArg(args, 2) });
+
+      } else if (name === 'trusted-replace-fetch-response') {
+        fetchRules.push({
+          kind: 'replace',
+          search: asRegex(args[0], true),
+          replace: args.length > 1 ? args[1] : '',
+          url: urlArg(args, 2)
+        });
+
+      } else if (name === 'trusted-replace-xhr-response') {
+        xhrRules.push({
+          search: asRegex(args[0], true),
+          replace: args.length > 1 ? args[1] : '',
+          url: urlArg(args, 2)
+        });
+      }
+    } catch {}
+  }
+
+  /* ------------------------------------------------------------ JSON.parse */
+
+  if (jsonPrunePaths.length) {
+    const rawParse = JSON.parse;
+    JSON.parse = function parse(text, reviver) {
+      const out = rawParse.call(this, text, reviver);
+      try { pruneAll(out, jsonPrunePaths); } catch {}
+      return out;
+    };
+
+    const rawJson = Response.prototype.json;
+    Response.prototype.json = function json() {
+      return rawJson.call(this).then((out) => {
+        try { pruneAll(out, jsonPrunePaths); } catch {}
+        return out;
+      });
+    };
+  }
+
+  /* ----------------------------------------------------------------- fetch */
+
+  if (fetchRules.length && typeof window.fetch === 'function') {
+    const rawFetch = window.fetch;
+
+    window.fetch = function fetch(input, init) {
+      const url = urlOf(input);
+      const rules = fetchRules.filter(r => urlMatches(url, r.url));
+      const answer = rawFetch.call(this, input, init);
+      if (!rules.length) return answer;
+
+      return answer.then((res) => {
+        // Only a readable body can be rewritten, and only once.
+        if (!res || !res.body || res.bodyUsed) return res;
+
+        return res.clone().text().then((text) => {
+          let out = text;
+          for (const r of rules) {
+            try {
+              if (r.kind === 'replace' && r.search) {
+                out = out.replace(r.search, r.replace);
+              } else if (r.kind === 'prune') {
+                const data = JSON.parse(out);
+                pruneAll(data, r.paths);
+                out = JSON.stringify(data);
+              }
+            } catch {}
+          }
+          if (out === text) return res;
+
+          const replaced = new Response(out, {
+            status: res.status,
+            statusText: res.statusText,
+            headers: res.headers
+          });
+          // A constructed Response has no url of its own, and code that reads
+          // it back would see an empty string where it expects an address.
+          try { Object.defineProperty(replaced, 'url', { value: res.url }); } catch {}
+          return replaced;
+        }).catch(() => res);
+      });
+    };
+  }
+
+  /* ------------------------------------------------------------------- xhr */
+
+  if (xhrRules.length && window.XMLHttpRequest) {
+    const proto = XMLHttpRequest.prototype;
+    const rawOpen = proto.open;
+
+    proto.open = function open(method, url) {
+      const rules = xhrRules.filter(r => urlMatches(String(url), r.url));
+      if (rules.length) {
+        // The listener goes on here rather than in send(), so that it runs
+        // before the handlers the page attaches between open() and send().
+        this.addEventListener('readystatechange', function () {
+          if (this.readyState !== 4) return;
+          let text;
+          try { text = this.responseText; } catch { return; }
+          if (typeof text !== 'string') return;
+
+          let out = text;
+          for (const r of rules) {
+            try { if (r.search) out = out.replace(r.search, r.replace); } catch {}
+          }
+          if (out === text) return;
+          try {
+            Object.defineProperty(this, 'responseText', { value: out, configurable: true });
+            Object.defineProperty(this, 'response', { value: out, configurable: true });
+          } catch {}
+        });
+      }
+      return rawOpen.apply(this, arguments);
+    };
+  }
+}
+
 /* ------------------------------------------------------- being a browser
 
    Veil is Chromium, but Electron leaves three tells that sites use to pick an
@@ -423,6 +740,15 @@ function onReady(fn) {
 /* Fingerprinting defences go in before any page script runs. The seed comes
    from the main process: one secret per run, mixed with this page's origin, so
    the readings a site takes are stable for it and different for everyone else. */
+if (!isInternal && isWeb) {
+  try {
+    const scriptlets = ipcRenderer.sendSync('page:scriptlets', location.hostname);
+    if (Array.isArray(scriptlets) && scriptlets.length) {
+      contextBridge.executeInMainWorld({ func: runScriptlets, args: [scriptlets] });
+    }
+  } catch {}
+}
+
 if (!isInternal && isWeb) {
   ipcRenderer.invoke('page:identity').then((info) => {
     if (!info || !Array.isArray(info.brands)) return;

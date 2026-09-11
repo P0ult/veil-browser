@@ -193,6 +193,11 @@ class AdBlock {
     };
   }
 
+  /** The scriptlets written for this site, from the lists and the user's own. */
+  scriptletsFor(hostname) {
+    return this.engine.scriptletsFor(hostname).concat(this.user.scriptletsFor(hostname));
+  }
+
   /**
    * The generic rules that apply to a page containing these class and id
    * names. Tens of thousands of rules exist; a page is told about the handful
@@ -221,6 +226,7 @@ class AdBlock {
       network: c.network,
       hosts: c.host,
       cosmetic: c.cosmetic + c.generic,
+      scriptlet: c.scriptlet,
       buildMs: this.buildTime
     };
   }

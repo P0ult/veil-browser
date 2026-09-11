@@ -33,6 +33,7 @@ about a query touches disk.
 | **Tunnel** | All browser traffic goes through Tor, or your own SOCKS5/HTTP endpoint, with a kill switch. On by default. |
 | **Encrypted DNS** | DNS-over-HTTPS, so lookups are not readable on the wire. |
 | **Ad and tracker blocking** | A full Adblock Plus / uBlock Origin filter engine, matching in `webRequest` before a packet leaves the machine: network patterns with resource types, first- and third-party rules, per-site rules and exceptions. EasyList, EasyPrivacy and uBlock Origin's own lists ship inside the app - about 116,000 rules - and refresh from their sources. |
+| **Adverts inside the page's own data** | Some adverts cannot be blocked by refusing a request - YouTube describes its adverts inside the same JSON the player needs to play the video. Veil runs the scriptlets the lists carry for exactly this, which is how uBlock Origin handles it too. |
 | **No empty ad boxes** | Cosmetic filtering from the same lists collapses the containers a blocked ad leaves behind. The page says which class and id names it contains and is sent only the rules that could match one, so it carries forty selectors rather than forty thousand. |
 | **Third-party cookies** | Stripped from cross-site requests in both directions — `Cookie` going out, `Set-Cookie` coming back. |
 | **Referrers** | Cross-site requests send the bare origin, never the page you came from. |
@@ -41,8 +42,7 @@ about a query touches disk.
 | **WebRTC** | IP handling policy set so a page cannot enumerate your local addresses. |
 | **Permissions** | Notifications, USB, serial, HID, Bluetooth, idle detection and friends are denied outright. Camera, microphone and location prompt, and default to no. |
 | **Telemetry** | Crash reporting, metrics, domain reliability, background networking, component updates, DNS prefetching and the entire Privacy Sandbox advertising stack are off. |
-| **Fingerprinting** | The user agent is a plain Chrome string with no Electron marker. Tabs draw letter avatars instead of fetching favicons, so visiting a page does not also ping its icon host. |
-| **Fingerprinting** | Per-site noise on canvas, WebGL and audio readings, plus normalised CPU/memory/language. Randomisation, not Tor-style uniformity — see below. |
+| **Fingerprinting** | Per-site noise on canvas, WebGL and audio readings, plus normalised CPU/memory/language. Randomisation, not Tor-style uniformity — see below. The user agent, the client hints and the page-side objects all give one consistent answer, which is what stops sites treating Veil as an embedded browser. |
 | **HTTPS** | An upgraded address that will not load over TLS shows a warning page. Veil never falls back to plaintext on its own. |
 | **Updates** | Veil knows how old its own Chromium is and says so, and can update itself when a release feed is configured. |
 | **No AI** | Nothing summarises, completes, suggests or calls a model. The address bar has no dropdown at all — that is the point, not an omission. |

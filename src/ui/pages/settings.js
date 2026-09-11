@@ -219,6 +219,7 @@ async function renderAdblock() {
     n(r.network) + ' rules',
     n(r.hosts) + ' hostnames',
     n(r.cosmetic) + ' hiding rules',
+    n(r.scriptlet) + ' page fixes',
     n(s.blockedTotal) + ' blocked this session'
   ].join('  ·  ');
 

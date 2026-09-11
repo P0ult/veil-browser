@@ -850,6 +850,27 @@ function wireIpc() {
    * page only what Veil already puts in the request headers it sends on that
    * page's behalf.
    */
+  /**
+   * The scriptlets for a page, answered synchronously.
+   *
+   * Synchronous because of when it is asked: the preload needs them before
+   * the page's first inline script runs, and an asynchronous answer arrives
+   * after YouTube has already assigned the object the rules are written to
+   * intercept. It is a Map lookup, so the pause is not a measurable one.
+   */
+  ipcMain.on('page:scriptlets', (event, hostname) => {
+    event.returnValue = [];
+    try {
+      // Gated on ad blocking alone. These are what stops a video advert
+      // playing, which is not the same kind of thing as collapsing an empty
+      // banner, and it should not be switched off by the setting for that.
+      if (!settings.get('privacy.blockAds', true)) return;
+      const host = String(hostname || '').slice(0, 255);
+      if (adblock.isAllowedSite(host)) return;
+      event.returnValue = adblock.scriptletsFor(host);
+    } catch {}
+  });
+
   ipcMain.handle('page:identity', () => ({
     brands: identity.brands(),
     platform: identity.platformName(),

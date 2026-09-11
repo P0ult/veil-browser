@@ -11,13 +11,15 @@
  * this element is the empty box the ad left behind.
  *
  * This reads those lists properly. It is not all of uBlock Origin - there is
- * no scriptlet injection, no procedural cosmetic filtering, no redirection -
- * but it is the part that does the blocking:
+ * no procedural cosmetic filtering and no request redirection - but it is the
+ * part that does the blocking:
  *
  *   - network patterns, with the option syntax: $third-party, $script,
  *     $domain=a.com|~b.com, and the rest of the resource types
  *   - exception rules (@@), which are what stop a filter list breaking sites
  *   - cosmetic rules (##, #@#), generic and per-domain
+ *   - a handful of scriptlets (##+js), which is the only way to reach an
+ *     advert that arrives inside the same data the page needs to work
  *
  * Speed comes from the same place uBlock gets it: rules are indexed under one
  * token of their own pattern, and a URL is only ever tested against rules
@@ -279,6 +281,102 @@ function parseNetworkRule(line) {
   return rule;
 }
 
+
+/* ------------------------------------------------------------- scriptlets
+
+   Some things cannot be blocked by refusing a request. YouTube's adverts are
+   the standard example: the advert is described inside the same JSON the
+   player needs to play the video, served from the same address, so there is
+   no request to cancel and no element to hide - by the time anything is on
+   screen the player is already playing an advert.
+
+   uBlock Origin solves this with scriptlets: small functions injected into
+   the page before its own scripts run, which change what the page's own code
+   sees. The filter lists carry them as `##+js(name, arg, arg)`.
+
+   Only the ones Veil actually implements are kept. A scriptlet rule whose
+   name means nothing here is dropped, exactly like an unsupported network
+   option - a rule that half-runs is worse than one that does not run.       */
+
+const SCRIPTLETS = new Set([
+  'set', 'set-constant',
+  'json-prune',
+  'json-prune-fetch-response',
+  'trusted-replace-fetch-response',
+  'trusted-replace-xhr-response'
+]);
+
+/**
+ * Split scriptlet arguments on commas.
+ *
+ * Arguments may be quoted, and may be regular expressions containing commas
+ * of their own - `{2\,4}` in a quantifier, for instance - which the lists
+ * escape with a backslash. So this splits on unescaped commas outside quotes
+ * and then unescapes what it found.
+ */
+function splitArgs(text) {
+  const out = [];
+  let cur = '';
+  let mode = 'plain';        // plain | quote | regex | class
+  let quote = '';
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+
+    // An escaped comma is a comma that belongs to the argument. Everything
+    // else that is escaped belongs to a regular expression and stays as it is.
+    if (c === '\\' && i + 1 < text.length) {
+      const next = text[i + 1];
+      cur += next === ',' ? ',' : c + next;
+      i++;
+      continue;
+    }
+
+    if (mode === 'quote') {
+      cur += c;
+      if (c === quote) mode = 'plain';
+      continue;
+    }
+
+    // A regular expression may contain quotes and commas of its own, which is
+    // why it needs its own mode: `/"adPlacements.*?"/` would otherwise be read
+    // as an opening quote and swallow the arguments after it.
+    if (mode === 'regex') {
+      cur += c;
+      if (c === '[') mode = 'class';
+      else if (c === '/') mode = 'plain';
+      continue;
+    }
+    if (mode === 'class') {
+      cur += c;
+      if (c === ']') mode = 'regex';
+      continue;
+    }
+
+    if (c === '"' || c === "'") { quote = c; mode = 'quote'; cur += c; continue; }
+    if (c === '/' && cur.trim() === '') { mode = 'regex'; cur += c; continue; }
+    if (c === ',') { out.push(cur); cur = ''; continue; }
+    cur += c;
+  }
+  out.push(cur);
+
+  return out.map(a => {
+    const t = a.trim();
+    if (t.length > 1 && (t[0] === '"' || t[0] === "'") && t[t.length - 1] === t[0]) {
+      return t.slice(1, -1);
+    }
+    return t;
+  });
+}
+
+/** `+js(name, a, b)` -> { name, args } , or null if we cannot run it. */
+function parseScriptlet(body) {
+  const parts = splitArgs(body);
+  const name = (parts.shift() || '').trim().toLowerCase();
+  if (!SCRIPTLETS.has(name)) return null;
+  return { name, args: parts };
+}
+
 /* ------------------------------------------------------------ the engine */
 
 class FilterEngine {
@@ -301,8 +399,9 @@ class FilterEngine {
     this.cosmeticExceptions = new Map();   // domain -> Set(selector)
     this.genericByToken = new Map();       // class/id token -> [selector]
     this.genericComplex = [];              // generic selectors with no single token
+    this.scriptletsByDomain = new Map();   // domain -> [{ name, args }]
 
-    this.counts = { network: 0, host: 0, cosmetic: 0, generic: 0, skipped: 0 };
+    this.counts = { network: 0, host: 0, cosmetic: 0, generic: 0, scriptlet: 0, skipped: 0 };
   }
 
   /** Add one list, in Adblock, hosts, or plain-domain format. */
@@ -380,9 +479,17 @@ class FilterEngine {
   addCosmetic(domainPart, selector, isException) {
     const sel = selector.trim();
     if (!sel) return;
-    // Procedural selectors, scriptlets and style rewriting: not implemented,
-    // and a partial implementation would hide the wrong things.
-    if (/^\+js\(|:has-text\(|:xpath\(|:matches-css|:matches-path|:matches-media|:min-text-length|:upward\(|:watch-attr|:remove\(|:style\(|:others\(|\\/.test(sel)) {
+
+    // A scriptlet, not a selector: it changes what the page's own code sees
+    // rather than hiding an element.
+    if (sel.startsWith('+js(') && sel.endsWith(')')) {
+      if (isException) { this.counts.skipped++; return; }
+      return this.addScriptlet(domainPart, sel.slice(4, -1));
+    }
+
+    // Procedural selectors and style rewriting: not implemented, and a partial
+    // implementation would hide the wrong things.
+    if (/:has-text\(|:xpath\(|:matches-css|:matches-path|:matches-media|:min-text-length|:upward\(|:watch-attr|:remove\(|:style\(|:others\(|\\/.test(sel)) {
       this.counts.skipped++;
       return;
     }
@@ -410,6 +517,43 @@ class FilterEngine {
         this.counts.cosmetic++;
       }
     }
+  }
+
+  /** A scriptlet, filed under each site it was written for. */
+  addScriptlet(domainPart, body) {
+    const parsed = parseScriptlet(body);
+    if (!parsed) { this.counts.skipped++; return; }
+
+    const domains = domainPart.split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
+    // A scriptlet with no domain would run on every page on the web. Nothing
+    // in these lists does that, and it is not a thing to allow by accident.
+    if (!domains.length) { this.counts.skipped++; return; }
+
+    for (const d of domains) {
+      if (d.startsWith('~')) continue;               // "everywhere but here"
+      const list = this.scriptletsByDomain.get(d) || [];
+      list.push(parsed);
+      this.scriptletsByDomain.set(d, list);
+      this.counts.scriptlet++;
+    }
+  }
+
+  /** The scriptlets written for this site, including its parent domains. */
+  scriptletsFor(hostname) {
+    const host = String(hostname || '').toLowerCase().replace(/^www\./, '');
+    const out = [];
+    const seen = new Set();
+    // The rules name www.youtube.com as often as youtube.com, so both the
+    // bare host and the one the lists write are looked up.
+    for (const d of [String(hostname || '').toLowerCase(), ...parentsOf(host)]) {
+      for (const sc of this.scriptletsByDomain.get(d) || []) {
+        const key = sc.name + '|' + sc.args.join('|');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(sc);
+      }
+    }
+    return out;
   }
 
   /**
@@ -572,4 +716,4 @@ function setHasDomainOrParent(set, hostname) {
   return false;
 }
 
-module.exports = { FilterEngine, TYPE, tokensOf, parseNetworkRule, patternToRe };
+module.exports = { FilterEngine, TYPE, tokensOf, parseNetworkRule, patternToRe, splitArgs, SCRIPTLETS };
