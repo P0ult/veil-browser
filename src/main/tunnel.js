@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const { spawn, execFile } = require('node:child_process');
 const { app, net, safeStorage } = require('electron');
 const { SocksRelay } = require('./socks-relay');
-const { MAC, firstExisting, wstunnelCandidates, TOR_BUNDLE_PLATFORM, TOR_BINARY } = require('./platform');
+const { MAC, WINDOWS, firstExisting, wstunnelCandidates, TOR_BUNDLE_PLATFORM, TOR_BINARY } = require('./platform');
 
 /**
  * The in-browser tunnel.
@@ -141,7 +141,10 @@ class Tunnel {
   async applyProxy(rules) {
     for (const ses of this.sessions) {
       try {
-        await ses.setProxy(rules ? { proxyRules: rules, proxyBypassRules: '<local>' } : { mode: 'direct' });
+        // No rules means "off": back to whatever the user's proxy setting
+        // says, which is direct unless they asked for the system's.
+        const off = this.settings.get('tunnel.systemProxy', false) ? { mode: 'system' } : { mode: 'direct' };
+        await ses.setProxy(rules ? { proxyRules: rules, proxyBypassRules: '<local>' } : off);
         await ses.forceReloadProxyConfig();
       } catch (e) {
         console.error('[tunnel] setProxy failed:', e.message);
@@ -574,8 +577,8 @@ class Tunnel {
 
   /**
    * Fetch the official Tor expert bundle for this platform and architecture,
-   * check it against the published SHA-256, and unpack it. Both Windows and
-   * macOS ship tar, so there is no archive dependency to add.
+   * check it against the published SHA-256, and unpack it. Windows, macOS and
+   * Linux all ship tar, so there is no archive dependency to add.
    */
   async downloadTor() {
     this.set(STATE.DOWNLOADING, 'Looking up the current Tor release', 0);
@@ -618,7 +621,7 @@ class Tunnel {
     // tar preserves the executable bit, but the archive is not ours to trust
     // on that point and a Tor that cannot be executed fails later as a
     // confusing ENOENT rather than a permissions error.
-    if (MAC) { try { fs.chmodSync(this.torExe(), 0o755); } catch {} }
+    if (!WINDOWS) { try { fs.chmodSync(this.torExe(), 0o755); } catch {} }
   }
 
   /** The checksum file the Tor Project publishes beside each build. */

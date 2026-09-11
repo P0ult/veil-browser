@@ -4,19 +4,22 @@ const os = require('node:os');
 const path = require('node:path');
 
 /**
- * The handful of facts that differ between Windows and macOS.
+ * The handful of facts that differ between Windows, macOS and Linux.
  *
  * They live together here rather than as `process.platform` checks sprinkled
- * through the modules that need them, so that adding a third platform is a
- * matter of editing one file and so that it is possible to read, in one place,
- * exactly what Veil assumes about the machine it is running on.
+ * through the modules that need them, so that adding a platform is a matter of
+ * editing one file and so that it is possible to read, in one place, exactly
+ * what Veil assumes about the machine it is running on.
  */
 
 const MAC = process.platform === 'darwin';
 const WINDOWS = process.platform === 'win32';
+const LINUX = process.platform === 'linux';
+const UNIX = MAC || LINUX;
 
 const HOME = os.homedir();
 const LOCAL_APP_DATA = process.env.LOCALAPPDATA || HOME;
+const XDG_CONFIG = process.env.XDG_CONFIG_HOME || path.join(HOME, '.config');
 
 /** The first of these paths that exists, or '' if none do. */
 function firstExisting(paths) {
@@ -35,10 +38,16 @@ function firstExisting(paths) {
  */
 const VPN_CTRL_DIR = MAC
   ? path.join(HOME, 'Library', 'Application Support', 'TunnelVPN', 'ctrl')
-  : path.join(LOCAL_APP_DATA, 'TunnelVPN', 'ctrl');
+  : LINUX
+    ? path.join(XDG_CONFIG, 'TunnelVPN', 'ctrl')
+    : path.join(LOCAL_APP_DATA, 'TunnelVPN', 'ctrl');
 
 /** Where the app itself usually ends up, most likely first. */
 function vpnCandidates() {
+  // Tunnel VPN is published for Windows and macOS. On Linux there is nothing
+  // to find, and the settings page says so rather than hunting for a file that
+  // was never built - the in-browser tunnel is the one that matters there.
+  if (LINUX) return [];
   if (MAC) {
     return [
       '/Applications/Tunnel VPN.app',
@@ -66,10 +75,12 @@ function vpnCandidates() {
  */
 const VPN_PROCESS_MARKS = MAC
   ? { app: 'tunnelvpn.app/contents/macos/tunnelvpn', openvpn: 'openvpn --config', wstunnel: 'wstunnel client' }
-  : { app: 'tunnelvpn.exe', openvpn: 'openvpn.exe', wstunnel: 'wstunnel.exe' };
+  : LINUX
+    ? { app: 'tunnelvpn', openvpn: 'openvpn --config', wstunnel: 'wstunnel client' }
+    : { app: 'tunnelvpn.exe', openvpn: 'openvpn.exe', wstunnel: 'wstunnel.exe' };
 
 /** The command that lists running processes, as [exe, args]. */
-const PROCESS_LIST_CMD = MAC
+const PROCESS_LIST_CMD = UNIX
   ? ['ps', ['-Axo', 'command=']]
   : ['tasklist', ['/NH', '/FO', 'CSV']];
 
@@ -82,9 +93,11 @@ const PROCESS_LIST_CMD = MAC
  */
 const TOR_BUNDLE_PLATFORM = MAC
   ? 'macos-' + (process.arch === 'arm64' ? 'aarch64' : 'x86_64')
-  : 'windows-x86_64';
+  : LINUX
+    ? 'linux-' + (process.arch === 'arm64' ? 'aarch64' : 'x86_64')
+    : 'windows-x86_64';
 
-const TOR_BINARY = MAC ? 'tor' : 'tor.exe';
+const TOR_BINARY = WINDOWS ? 'tor.exe' : 'tor';
 
 /* ------------------------------------------------------------- wstunnel */
 
@@ -98,16 +111,25 @@ function wstunnelCandidates() {
     return ['/opt/homebrew/bin/wstunnel', '/usr/local/bin/wstunnel',
             path.join(HOME, '.local', 'bin', 'wstunnel')];
   }
+  if (LINUX) {
+    return ['/usr/local/bin/wstunnel', '/usr/bin/wstunnel',
+            path.join(HOME, '.local', 'bin', 'wstunnel')];
+  }
   return [path.join(LOCAL_APP_DATA, 'TunnelVPN', 'bin', 'wstunnel.exe')];
 }
 
 /** The picker Veil opens when the user locates the VPN by hand. */
 const VPN_PICKER = MAC
   ? { title: 'Locate Tunnel VPN.app', filters: [{ name: 'Applications', extensions: ['app'] }] }
-  : { title: 'Locate TunnelVPN.exe', filters: [{ name: 'Programs', extensions: ['exe'] }] };
+  : LINUX
+    ? { title: 'Locate the Tunnel VPN program', filters: [{ name: 'Programs', extensions: ['*'] }] }
+    : { title: 'Locate TunnelVPN.exe', filters: [{ name: 'Programs', extensions: ['exe'] }] };
+
+/** The window icon. Windows takes the .ico; everything else wants a bitmap. */
+const APP_ICON = path.join(__dirname, '..', '..', 'assets', WINDOWS ? 'icon.ico' : 'icon.png');
 
 module.exports = {
-  MAC, WINDOWS,
+  MAC, WINDOWS, LINUX, UNIX, APP_ICON,
   firstExisting,
   VPN_CTRL_DIR, vpnCandidates, VPN_PROCESS_MARKS, PROCESS_LIST_CMD, VPN_PICKER,
   TOR_BUNDLE_PLATFORM, TOR_BINARY,

@@ -32,8 +32,8 @@ about a query touches disk.
 | **No Chromium autofill** | Chromium's own `Autofill` and `PasswordManager` stacks are disabled by command-line switch at launch. Veil's password vault (below) is separate and entirely under your control. |
 | **Tunnel** | All browser traffic goes through Tor, or your own SOCKS5/HTTP endpoint, with a kill switch. On by default. |
 | **Encrypted DNS** | DNS-over-HTTPS, so lookups are not readable on the wire. |
-| **Ad and tracker blocking** | Requests to known ad, tracker and telemetry domains are dropped in `webRequest` before a packet leaves the machine. 264 domains ship built in; optional subscriptions (StevenBlack, AdGuard DNS, Peter Lowe) add hundreds of thousands more. |
-| **No empty ad boxes** | A conservative cosmetic filter collapses the containers a blocked ad leaves behind. |
+| **Ad and tracker blocking** | A full Adblock Plus / uBlock Origin filter engine, matching in `webRequest` before a packet leaves the machine: network patterns with resource types, first- and third-party rules, per-site rules and exceptions. EasyList, EasyPrivacy and uBlock Origin's own lists ship inside the app - about 116,000 rules - and refresh from their sources. |
+| **No empty ad boxes** | Cosmetic filtering from the same lists collapses the containers a blocked ad leaves behind. The page says which class and id names it contains and is sent only the rules that could match one, so it carries forty selectors rather than forty thousand. |
 | **Third-party cookies** | Stripped from cross-site requests in both directions — `Cookie` going out, `Set-Cookie` coming back. |
 | **Referrers** | Cross-site requests send the bare origin, never the page you came from. |
 | **HTTPS** | Plain `http://` is upgraded automatically, with a one-shot fallback for sites that genuinely cannot serve TLS. |
@@ -161,16 +161,12 @@ of the machine while the tunnel claimed to carry it.
 
 ### The separate system VPN
 
-The Tunnel VPN app at
-
-```
-C:\Users\jackc\Downloads\TunnelVPN-win\Tunnel VPN\TunnelVPN.exe
-```
-
-is still wired up under Settings → Tunnel → System VPN, for when you want the
-whole machine covered. Veil opens it and reports honest status by checking which
-processes are actually running; it does not press Connect for you, because that
-app owns its own elevated session.
+The separate Tunnel VPN app is still wired up under Settings → Tunnel → System
+VPN, for when you want the whole machine covered. Veil looks for it in the usual
+places for the platform it is running on — `src/main/platform.js` holds that
+list — and Settings has a picker for anywhere else. Veil opens it and reports
+honest status by checking which processes are actually running; it does not
+press Connect for you, because that app owns its own elevated session.
 
 ## Fingerprinting
 
@@ -278,16 +274,18 @@ that forgets is not a password manager. Everything else still lives in memory.
 Everything lives in one readable file at
 `%APPDATA%\Veil\settings.json`, exportable and importable from Settings → Data.
 
-- **Appearance** — light/dark, accent colour, solid / gradient / image
-  background with fit, dim and blur, four font stacks, corner radius, compact or
-  comfortable density, and **tabs across the top or down the left** (with an
-  adjustable rail width and a collapse-to-icons mode)
+- **Appearance** — accent, text and link colours, solid / gradient / image
+  background with fit, dim and blur, liquid glass with an intensity slider, four
+  font stacks, corner radius, compact or comfortable density, and **tabs across
+  the top or down the left** (with an adjustable rail width and a
+  collapse-to-icons mode). There is no light/dark switch: pick a pale
+  background and the interface dresses itself to suit it.
 - **New tab** — clock, greeting, shortcut tiles, status line, each toggleable
 - **Search** — engine, which backends to blend, result count, bang table
 - **Tunnel** — provider, kill switch, whether search is routed, encrypted DNS
 - **Passwords** — autofill, save prompts, HTTPS-only, auto-lock
 - **Privacy** — every switch in the table above
-- **Ad block** — subscriptions, your own domain rules, per-site pause list
+- **Ad block** — which lists are on, your own rules in the lists' own syntax, per-site pause list
 - **Browser** — home page, new tab page, default zoom, shortcuts
 
 Changes apply live across every open tab; nothing needs a restart except
@@ -325,7 +323,8 @@ src/
     index.js       app lifecycle, window, sessions, IPC
     tabs.js        one WebContentsView per tab
     net-privacy.js every webRequest rule: blocking, HTTPS, cookies, referrers
-    adblock.js     domain-set matcher and list subscriptions
+    adblock.js     the lists: what ships, what was downloaded, what you added
+    filters.js     the filter engine: Adblock Plus syntax, network and cosmetic
     search.js      the meta-search engine
     tunnel.js      the in-browser tunnel: Tor, SOCKS5, kill switch
     socks-relay.js loopback SOCKS5 relay that authenticates upstream
@@ -347,7 +346,8 @@ src/
     pages/         home, search, passwords, settings, about, blocked,
                    error, insecure
 assets/
-  blocklist.txt    the built-in domain list
+  blocklist.txt    a short hand-written domain list, as a backstop
+  filters/         EasyList, EasyPrivacy and uBlock Origin's lists
 ```
 
 Two rules hold the security model together: the preload only hands the `veil`

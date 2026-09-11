@@ -10,7 +10,7 @@ const { SearchEngine } = require('./search');
 const { Vpn } = require('./vpn');
 const { Tunnel } = require('./tunnel');
 const { Vault } = require('./vault');
-const { VPN_PICKER } = require('./platform');
+const { VPN_PICKER, APP_ICON } = require('./platform');
 const { edgesReached } = require('./hover');
 const { computeLayout } = require('./layout');
 const { Updater } = require('./updater');
@@ -175,10 +175,19 @@ function floating() {
   return !!settings.get('appearance.autoHideChrome', false);
 }
 
-/** The centred search box of a minimal new tab, in window coordinates. */
+/**
+ * The panel of a minimal new tab, in window coordinates.
+ *
+ * Taller than the search box itself: the wordmark sits above it and the
+ * shortcuts below, and all three are drawn by the chrome document inside this
+ * one rectangle. It is deliberately not the whole window - a native view is
+ * opaque where its document paints, so a full-window panel would hide the page
+ * this mode exists to keep showing.
+ */
 function centreBox(w, h) {
-  const width = Math.max(320, Math.min(620, Math.round(w * 0.52)));
-  return { x: Math.round((w - width) / 2), y: Math.round(h * 0.30), width, height: 66 };
+  const width = Math.max(360, Math.min(720, Math.round(w * 0.56)));
+  const height = Math.min(268, Math.max(180, Math.round(h * 0.34)));
+  return { x: Math.round((w - width) / 2), y: Math.round(h * 0.24), width, height };
 }
 
 function relayout() {
@@ -482,6 +491,26 @@ function createSessions() {
   browseSession = session.fromPartition(keep ? 'persist:veil' : 'veil-private');
   searchSession = session.fromPartition('veil-search');   // always throwaway
 
+  /* Do not go looking for a proxy the machine has not been told it has.
+   *
+   * Chromium's default is to follow the system settings, and Windows ships
+   * with "Automatically detect settings" on. That makes the first request out
+   * of a fresh session wait for WPAD to fail, which was measured here at
+   * twenty-one seconds - the whole of it landing on whatever the user did
+   * first. It is why the first search of a session used to time out.
+   *
+   * Direct is also the right default for this browser on its own terms: a
+   * system proxy is something that sees all of your traffic, and Veil has its
+   * own tunnel for that. The tunnel sets its own rules over the top of this
+   * whenever it is up, and anyone who really is behind a corporate proxy can
+   * turn the setting back on.
+   */
+  if (!settings.get('tunnel.systemProxy', false)) {
+    for (const ses of [browseSession, searchSession]) {
+      ses.setProxy({ mode: 'direct' }).catch(() => {});
+    }
+  }
+
   const chromeVersion = process.versions.chrome.split('.')[0];
   const ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.0 Safari/537.36`;
   app.userAgentFallback = ua;
@@ -579,7 +608,7 @@ function createWindow() {
     frame: false,
     show: false,
     backgroundColor: baseBackground(settings.get('appearance', {})),
-    icon: path.join(__dirname, '..', '..', 'assets', 'icon.ico'),
+    icon: APP_ICON,
     title: 'Veil'
   });
   try { win.setMenuBarVisibility(false); win.setAutoHideMenuBar(true); } catch {}
@@ -781,8 +810,54 @@ function wireIpc() {
     };
   });
 
-  ipcMain.handle('page:cosmetic', () =>
-    !!(settings.get('privacy.blockAds', true) && settings.get('privacy.cosmeticFiltering', true)));
+  /* ------------------------------------------------- cosmetic filtering
+
+     Two calls, and the shape of them is the whole design. The first hands a
+     page the rules written for it by name, which is a handful. The second is
+     how the tens of thousands of *generic* rules are dealt with: rather than
+     send them all to every page, the page says which class and id names it
+     actually contains and gets back only the rules that could match. That is
+     what uBlock Origin does, and it is the difference between a stylesheet of
+     forty selectors and one of forty thousand.
+
+     Both are reachable from ordinary web pages, unlike everything else here.
+     A page learning which advert selectors Veil would hide on it tells it
+     nothing it could not work out by looking at itself. */
+
+  function cosmeticHost(event) {
+    try {
+      const frame = event.senderFrame;
+      if (frame && frame.url) return new URL(frame.url).hostname;
+    } catch {}
+    return '';
+  }
+
+  function cosmeticOn(host) {
+    if (!settings.get('privacy.blockAds', true)) return false;
+    if (!settings.get('privacy.cosmeticFiltering', true)) return false;
+    return !adblock.isAllowedSite(host);
+  }
+
+  ipcMain.handle('page:cosmetic', (event) => {
+    const host = cosmeticHost(event);
+    if (!cosmeticOn(host)) return null;
+    const rules = adblock.cosmeticFor(host);
+    return {
+      specific: rules.specific.slice(0, 4000),
+      complex: rules.complex,
+      excepted: rules.excepted.slice(0, 2000)
+    };
+  });
+
+  ipcMain.handle('page:cosmetic-generic', (event, tokens, excepted) => {
+    const host = cosmeticHost(event);
+    if (!cosmeticOn(host)) return [];
+    if (!Array.isArray(tokens) || !tokens.length) return [];
+    return adblock.genericFor(
+      tokens.slice(0, 4000).map(t => String(t).slice(0, 120)),
+      Array.isArray(excepted) ? excepted : []
+    ).slice(0, 4000);
+  });
 
   ipcMain.handle('settings:get', guard(() => settings.all()));
 
@@ -883,7 +958,8 @@ function wireIpc() {
     builtin: adblock.builtinCount,
     blockedTotal: adblock.total,
     lastUpdated: settings.get('adblock.lastUpdated', 0),
-    lists: settings.get('adblock.lists', [])
+    lists: settings.get('adblock.lists', []),
+    rules: adblock.stats()
   })));
 
   ipcMain.handle('adblock:update', guard(() => adblock.updateLists()));

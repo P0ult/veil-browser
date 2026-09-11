@@ -167,9 +167,21 @@ function installDefences(seed, cfg) {
 }
 
 /* ------------------------------------------------- cosmetic ad filtering
-   Network blocking removes the ad, but the empty box it leaves behind is
-   still there. These rules collapse the containers. They are deliberately
-   conservative: only selectors ad tech uses and ordinary pages do not.     */
+
+   Network blocking removes the advert; the empty box it was sitting in stays
+   behind unless something hides it. The rules for that come from the filter
+   lists in the main process, in two parts:
+
+     - the ones written for this site by name, which arrive immediately and
+       go in before the page has painted
+     - the generic ones, which number in the tens of thousands. Sending them
+       all to every page would cost more than the adverts do, so this tells
+       the main process which class and id names the page actually contains
+       and gets back only the rules that could match one. The page is surveyed
+       again as it changes, because most of it arrives after the first paint.
+
+   The short hand-written list below stays as the floor: it applies before the
+   first answer comes back, and it covers the case where the lists are off. */
 
 const COSMETIC_RULES = [
   'ins.adsbygoogle', '.adsbygoogle',
@@ -185,15 +197,105 @@ const COSMETIC_RULES = [
   '#adsense', '#ad-container', '#banner-ad', '#sidebar-ad',
   'aside[aria-label="Advertisement" i]', 'div[aria-label="Advertisement" i]',
   'div[aria-label="Ads" i]', 'section[aria-label="Advertisement" i]'
-].join(',');
+];
+
+let cosmeticSheet = null;
+const cosmeticSeen = new Set();     // selectors already in the sheet
+let cosmeticExcepted = [];          // rules this site is exempt from
+
+function cosmeticStyle() {
+  if (cosmeticSheet && cosmeticSheet.isConnected) return cosmeticSheet;
+  cosmeticSheet = document.createElement('style');
+  cosmeticSheet.setAttribute('data-veil', 'cosmetic');
+  (document.head || document.documentElement).appendChild(cosmeticSheet);
+  return cosmeticSheet;
+}
+
+/** Add selectors to the page's hiding sheet, skipping ones already there. */
+function hide(selectors) {
+  const fresh = [];
+  for (const s of selectors || []) {
+    if (!s || cosmeticSeen.has(s)) continue;
+    cosmeticSeen.add(s);
+    fresh.push(s);
+  }
+  if (!fresh.length) return;
+  try {
+    // One rule per selector rather than one long comma-separated rule: a
+    // single selector the browser cannot parse would throw the whole rule
+    // away, and these lists are written for several browsers.
+    const style = cosmeticStyle();
+    for (const s of fresh) {
+      try { style.sheet.insertRule(s + '{display:none !important;}', style.sheet.cssRules.length); }
+      catch {}
+    }
+  } catch {}
+}
 
 function injectCosmetics() {
+  hide(COSMETIC_RULES);
+}
+
+/* The survey: every class and id the page contains, as the filter lists spell
+   them. Only names not asked about before are sent. */
+const askedTokens = new Set();
+
+function newTokens(root) {
+  const out = [];
+  const add = (prefix, name) => {
+    const token = prefix + String(name).toLowerCase();
+    if (token.length < 2 || askedTokens.has(token)) return;
+    askedTokens.add(token);
+    out.push(token);
+  };
+
+  let nodes;
+  try { nodes = (root || document).querySelectorAll('[class],[id]'); } catch { return out; }
+  for (const el of nodes) {
+    const cls = el.getAttribute && el.getAttribute('class');
+    if (cls && typeof cls === 'string') {
+      for (const c of cls.split(/\s+/)) if (c) add('.', c);
+    }
+    if (el.id) add('#', el.id);
+    if (out.length > 3000) break;        // a pathological page; the rest waits
+  }
+  return out;
+}
+
+async function survey() {
+  const tokens = newTokens(document);
+  if (!tokens.length) return;
   try {
-    const style = document.createElement('style');
-    style.setAttribute('data-veil', 'cosmetic');
-    style.textContent = COSMETIC_RULES + '{display:none !important;}';
-    (document.head || document.documentElement).appendChild(style);
+    const selectors = await ipcRenderer.invoke('page:cosmetic-generic', tokens, cosmeticExcepted);
+    hide(selectors);
   } catch {}
+}
+
+/** Survey again as the page fills in, but never more than twice a second. */
+function watchForMore() {
+  let timer = null;
+  const later = () => {
+    if (timer) return;
+    timer = setTimeout(() => { timer = null; survey(); }, 500);
+  };
+  try {
+    new MutationObserver(later).observe(document.documentElement, {
+      childList: true, subtree: true, attributeFilter: ['class', 'id']
+    });
+  } catch {}
+}
+
+async function startCosmetics() {
+  let rules = null;
+  try { rules = await ipcRenderer.invoke('page:cosmetic'); } catch {}
+  if (!rules) return;                   // blocking off, or paused on this site
+
+  injectCosmetics();
+  cosmeticExcepted = rules.excepted || [];
+  hide(rules.specific);
+  hide(rules.complex);
+
+  onReady(() => { survey(); watchForMore(); });
 }
 
 function onReady(fn) {
@@ -215,11 +317,8 @@ if (!isInternal && isWeb) {
 }
 
 if (!isInternal && isWeb) {
-  ipcRenderer.invoke('page:cosmetic').then((on) => {
-    if (!on) return;
-    if (document.documentElement) injectCosmetics();
-    else onReady(injectCosmetics);
-  }).catch(() => {});
+  if (document.documentElement) startCosmetics();
+  else onReady(startCosmetics);
 }
 
 /* ------------------------------------------------------------------ autofill

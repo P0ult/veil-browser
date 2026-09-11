@@ -13,11 +13,15 @@ const VERTICALS = [
 ];
 const vertical = VERTICALS.some(v => v[0] === params.get('t')) ? params.get('t') : 'web';
 
+/* Every vertical except the web one carries its name in the address.
+   This used to name only the image tab, so clicking Videos, News or Shopping
+   built a URL with no `t` at all and landed back on Web - the tabs looked
+   like they did nothing. */
 function pageUrl(n, t, q) {
   const which = t || vertical;
   return 'veil://search/?q=' + encodeURIComponent(q || query) +
          (n > 1 ? '&p=' + n : '') +
-         (which === 'images' ? '&t=images' : '');
+         (which && which !== 'web' ? '&t=' + encodeURIComponent(which) : '');
 }
 
 /* ------------------------------------------------------------- verticals */
@@ -113,7 +117,11 @@ function openViewer(index) {
 
   el.querySelector('h3').textContent = im.title || im.host;
   const bits = [im.host];
-  if (im.width && im.height) bits.push(im.width + ' \u00d7 ' + im.height);
+  // The second source only knows the thumbnail's dimensions, so its numbers
+  // describe the shape rather than the file. Marked, not guessed at.
+  if (im.width && im.height) {
+    bits.push((im.approxSize ? '\u2248 ' : '') + im.width + ' \u00d7 ' + im.height);
+  }
   el.querySelector('.sub').textContent = bits.filter(Boolean).join('  \u00b7  ');
 
   el.querySelector('.prev').disabled = index <= 0;
@@ -254,7 +262,10 @@ function renderVideo(v) {
 
   const meta = document.createElement('div');
   meta.className = 'sub';
-  const bits = [v.publisher || v.uploader, v.views ? compact(v.views) + ' views' : '', when(v.published)];
+  // One source gives a count, the other gives it already written out. Neither
+  // is reformatted into the other's shape.
+  const views = v.viewsText ? v.viewsText + ' views' : v.views ? compact(v.views) + ' views' : '';
+  const bits = [v.publisher || v.uploader, views, when(v.published)];
   meta.textContent = bits.filter(Boolean).join('  \u00b7  ');
 
   const desc = document.createElement('p');
@@ -296,7 +307,7 @@ async function runVideos() {
     for (const v of data.results) list.append(renderVideo(v));
     out.append(list);
   }
-  meta([data.results.length ? data.results.length + ' videos' : '', secs(data.took)]);
+  meta([data.results.length ? data.results.length + ' videos' : '', via(data.source), secs(data.took)]);
   const nav = renderPager({ page, hasNext: data.results.length >= 30 });
   if (nav) out.append(nav);
   $('out').replaceChildren(out);
@@ -359,7 +370,7 @@ async function runNews() {
     for (const n of data.results) list.append(renderNews(n));
     out.append(list);
   }
-  meta([data.results.length ? data.results.length + ' stories' : '', secs(data.took)]);
+  meta([data.results.length ? data.results.length + ' stories' : '', via(data.source), secs(data.took)]);
   $('out').replaceChildren(out);
 }
 
@@ -395,7 +406,7 @@ async function runShopping() {
     out.append(grid);
   }
   meta([data.results.length ? data.results.length + ' listings' : '',
-        data.scanned ? 'of ' + data.scanned + ' results' : '', secs(data.took)]);
+        data.scanned ? 'of ' + data.scanned + ' results' : '', via(data.source), secs(data.took)]);
   const nav = renderPager({ page, hasNext: data.results.length >= 10 });
   if (nav) out.append(nav);
   $('out').replaceChildren(out);
@@ -418,6 +429,11 @@ function emptyBox(heading, detail) {
 }
 
 function secs(ms) { return ((ms || 0) / 1000).toFixed(1) + 's'; }
+
+/* Which source answered. Said only when it is not the usual one, so the line
+   stays quiet in the ordinary case and explains itself on the day DuckDuckGo
+   turns Veil away and something else picks it up. */
+function via(source) { return source && source !== 'DuckDuckGo' ? 'via ' + source : ''; }
 
 function meta(bits) {
   if (page > 1) bits = bits.concat(['page ' + page]);
@@ -459,6 +475,7 @@ async function runImages() {
   const bits = [];
   if (data.results.length) bits.push(data.results.length + ' images');
   if (data.hidden) bits.push(data.hidden + ' AI-looking hidden');
+  if (via(data.source)) bits.push(via(data.source));
   bits.push(((data.took || 0) / 1000).toFixed(1) + 's');
   if (page > 1) bits.push('page ' + page);
   $('meta').textContent = bits.join('  ·  ');

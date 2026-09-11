@@ -105,19 +105,38 @@ class NetPrivacy {
     const siteHost = isMain ? host : topHost;
 
     if (this.p('blockAds') && host && !this.adblock.isAllowedSite(siteHost)) {
-      if (this.adblock.isBlockedHost(host)) {
+      const sameSite = topHost && baseDomain(host) === baseDomain(topHost);
+      const verdict = this.adblock.decide({
+        url,
+        host,
+        type: details.resourceType,
+        docDomain: isMain ? host : topHost,
+        thirdParty: this.isThirdParty(details)
+      });
+
+      if (verdict) {
         if (isMain) {
-          this.adblock.countHit(details.webContentsId);
-          this.onMainFrameBlocked(details.webContentsId, url);
-          return { cancel: true };
-        }
-        // A first-party asset sharing the page's own base domain is almost
-        // never the ad; third-party scripts and beacons almost always are.
-        const sameSite = topHost && baseDomain(host) === baseDomain(topHost);
-        if (!sameSite || details.resourceType === 'script' || details.resourceType === 'xhr') {
+          // Only a hostname list stops a navigation. A pattern rule is about
+          // what a page loads, not about where you are allowed to go.
+          if (verdict === 'block-host') {
+            this.adblock.countHit(details.webContentsId);
+            this.onMainFrameBlocked(details.webContentsId, url);
+            return { cancel: true };
+          }
+        } else if (verdict === 'block') {
           this.adblock.countHit(details.webContentsId);
           this.onBlocked(details.webContentsId);
           return { cancel: true };
+        } else {
+          // A hostname list cannot tell "this domain serves adverts" from
+          // "this domain is the page you are reading", so a site's own
+          // pictures and stylesheets survive a hit on one; its scripts and
+          // background requests do not.
+          if (!sameSite || details.resourceType === 'script' || details.resourceType === 'xhr') {
+            this.adblock.countHit(details.webContentsId);
+            this.onBlocked(details.webContentsId);
+            return { cancel: true };
+          }
         }
       }
     }

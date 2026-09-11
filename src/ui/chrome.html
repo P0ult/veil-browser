@@ -20,6 +20,7 @@
   <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.6 3.6 5.4 3.6 8.5S14.4 18.4 12 20.5c-2.4-2.1-3.6-5-3.6-8.5S9.6 6.1 12 3.5z"/></symbol>
   <symbol id="i-tunnel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 16 0v8H4z"/><path d="M9.5 20v-8a2.5 2.5 0 0 1 5 0v8"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="5.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="18.5" r="1.4" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M17.5 6.5 6.5 17.5"/><path d="m6.5 6.5 11 11"/></symbol>
   <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 6-6 6 6"/></symbol>
@@ -51,6 +52,9 @@
 
         <div class="omnibox" id="omnibox">
           <svg class="icon scheme" id="scheme-icon"><use href="#i-lock"/></svg>
+          <!-- Stands in for the padlock on a minimal new tab, where there is
+               no page yet to say anything about. -->
+          <svg class="icon centre-glass" id="centre-search-icon"><use href="#i-search"/></svg>
           <input id="url" type="text" spellcheck="false" autocomplete="off" autocorrect="off"
                  autocapitalize="off" placeholder="Search or enter address" aria-label="Address and search bar">
           <button id="shield" class="shield" title="Blocked on this page">
@@ -84,6 +88,12 @@
       </div>
     </div>
   </div>
+
+  <!-- The minimal new tab: a wordmark and the shortcuts, either side of the
+       omnibox that is already in .main above. Present only in centre mode. -->
+  <i class="veil-word centre-word" id="centre-word" aria-hidden="true"></i>
+  <div class="centre-shortcuts" id="centre-shortcuts"></div>
+  <div class="centre-hint" id="centre-hint">Escape to go back</div>
 
   <!-- moved between the tab strip and the toolbar depending on the mode -->
   <div class="wincontrols" id="wincontrols">

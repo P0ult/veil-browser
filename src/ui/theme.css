@@ -104,6 +104,17 @@ body { background: transparent; }
   transition: opacity var(--dur) var(--ease);
 }
 
+/* `hidden` means hidden.
+
+   Any author rule that sets `display` beats the browser's own
+   `[hidden] { display: none }`, whatever its specificity, because author
+   styles outrank the user-agent sheet. So an element with a class or id rule
+   giving it a display - which is most of the panels here - stayed on screen
+   after the code that was hiding it had done everything right. That is what
+   left the picture viewer's close button doing nothing: it set `hidden`, and
+   `#viewer { display: grid }` quietly overruled it. */
+[hidden] { display: none !important; }
+
 ::selection { background: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--text); }
 
 ::-webkit-scrollbar { width: 11px; height: 11px; }
@@ -208,22 +219,33 @@ a:hover { text-decoration: underline; }
    reach across that boundary. What it does reach: the chrome's own background,
    the search page behind its panels, and anything the viewer covers.        */
 
+/* The four values below are the whole of the intensity slider. They are set
+   as inline custom properties by theme.js when glass is on, and the numbers
+   here are the fallbacks for anything that renders before it runs. Panels get
+   more opaque as well as blurrier, because frost that only blurs reads as a
+   smeared rectangle rather than as thicker glass. */
 :root[data-glass="1"] {
-  --surface: rgba(255, 255, 255, 0.08);
-  --surface-2: rgba(255, 255, 255, 0.13);
-  --surface-3: rgba(255, 255, 255, 0.19);
-  --border: rgba(255, 255, 255, 0.16);
-  --border-strong: rgba(255, 255, 255, 0.28);
   --glass-blur: 18px;
+  --glass-sat: 1.7;
   --glass-edge: rgba(255, 255, 255, 0.34);
+  --glass-tint: 0.08;
+
+  --surface: rgba(255, 255, 255, var(--glass-tint));
+  --surface-2: rgba(255, 255, 255, calc(var(--glass-tint) * 1.7));
+  --surface-3: rgba(255, 255, 255, calc(var(--glass-tint) * 2.5));
+  --border: rgba(255, 255, 255, calc(var(--glass-tint) * 2));
+  --border-strong: rgba(255, 255, 255, calc(var(--glass-tint) * 3.4));
 }
 :root[data-glass="1"][data-theme="light"] {
-  --surface: rgba(255, 255, 255, 0.5);
-  --surface-2: rgba(255, 255, 255, 0.66);
-  --surface-3: rgba(255, 255, 255, 0.8);
-  --border: rgba(15, 22, 33, 0.14);
-  --border-strong: rgba(15, 22, 33, 0.24);
   --glass-edge: rgba(255, 255, 255, 0.85);
+
+  /* Light glass is white frost over a pale page, so it starts from a high
+     floor: at the bottom of the slider it is still a pane, not a hole. */
+  --surface: rgba(255, 255, 255, calc(0.3 + var(--glass-tint) * 2));
+  --surface-2: rgba(255, 255, 255, calc(0.46 + var(--glass-tint) * 2));
+  --surface-3: rgba(255, 255, 255, calc(0.6 + var(--glass-tint) * 2));
+  --border: rgba(15, 22, 33, calc(0.08 + var(--glass-tint) * 0.7));
+  --border-strong: rgba(15, 22, 33, calc(0.16 + var(--glass-tint) * 1));
 }
 
 :root[data-glass="1"] .omnibox,
@@ -234,8 +256,8 @@ a:hover { text-decoration: underline; }
 :root[data-glass="1"] .searchbox,
 :root[data-glass="1"] .tunnel,
 :root[data-glass="1"] .verticals button[aria-selected="true"] {
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   box-shadow:
     inset 0 1px 0 var(--glass-edge),
     0 6px 20px rgba(0, 0, 0, 0.22);
@@ -251,7 +273,7 @@ a:hover { text-decoration: underline; }
 }
 
 :root[data-glass="1"] #viewer {
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.6));
   background: rgba(0, 0, 0, 0.62);
 }

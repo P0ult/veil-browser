@@ -1,7 +1,7 @@
 {
   "name": "veil-browser",
   "productName": "Veil",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A private, ad-free browser and meta-search engine.",
   "main": "src/main/index.js",
   "scripts": {
@@ -12,7 +12,9 @@
     "stamp": "node scripts/stamp-build.js",
     "set-owner": "node scripts/set-owner.js",
     "dist:mac": "node scripts/stamp-build.js && electron-builder --mac",
-    "release:mac": "node scripts/stamp-build.js && electron-builder --mac --publish always"
+    "release:mac": "node scripts/stamp-build.js && electron-builder --mac --publish always",
+    "dist:linux": "node scripts/stamp-build.js && electron-builder --linux",
+    "release:linux": "node scripts/stamp-build.js && electron-builder --linux --publish always"
   },
   "author": "jackc",
   "license": "MIT",
@@ -64,6 +66,47 @@
       "identity": null,
       "notarize": false,
       "icon": "assets/icon.png"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Network;WebBrowser",
+      "icon": "assets/icon.png",
+      "synopsis": "A private, ad-free browser and meta-search engine.",
+      "desktop": {
+        "entry": {
+          "Name": "Veil",
+          "Comment": "A private, ad-free browser and meta-search engine.",
+          "Categories": "Network;WebBrowser;",
+          "MimeType": "text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;"
+        }
+      }
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0"
+      ],
+      "packageCategory": "net"
     }
   },
   "devDependencies": {

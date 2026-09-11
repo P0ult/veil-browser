@@ -74,3 +74,27 @@ jobs:
           # electron-builder hunts for one and fails the build rather than
           # producing the unsigned app we actually want.
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+  # Ubuntu and anything close to it: an AppImage that runs anywhere without
+  # installing, and a .deb for apt. Both are x64 - Linux on arm is a different
+  # audience and nobody has asked for it.
+  #
+  # Waits for the Windows job for the same reason macOS does: one job creates
+  # the draft, the rest upload into it.
+  linux:
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - run: npm run release:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

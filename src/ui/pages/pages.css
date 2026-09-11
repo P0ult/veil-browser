@@ -83,7 +83,8 @@ body { display: flex; flex-direction: column; }
 .searchbox .go:hover { background: var(--accent); filter: brightness(1.08); }
 
 .hint { color: var(--text-3); font-size: 12.5px; margin-top: -14px; }
-.hint code {
+.hint code,
+.note code {
   font-family: ui-monospace, Consolas, monospace;
   background: var(--surface-2);
   padding: 1px 5px;

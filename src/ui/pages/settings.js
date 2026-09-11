@@ -80,6 +80,7 @@ function hydrate(skipFocused) {
 function themeColourFor(path) {
   const token = {
     'appearance.linkColor': '--link',
+    'appearance.textColor': '--text',
     'appearance.railColor': '--rail-bg',
     'appearance.bgColor': '--bg',
     'appearance.bgGradientA': '--bg',
@@ -106,6 +107,7 @@ function formatVal(path, v) {
   if (path === 'browser.defaultZoom') return Math.round(v * 100) + '%';
   if (path === 'appearance.bgBlur' || path === 'appearance.radius') return v + 'px';
   if (path === 'appearance.sidebarWidth') return v + 'px';
+  if (path === 'appearance.glassLevel') return v + '%';
   if (path === 'vpn.pollSeconds') return v + 's';
   return String(v);
 }
@@ -211,8 +213,14 @@ $('bangs').addEventListener('change', async () => {
 
 async function renderAdblock() {
   const s = await veil.adblock.stats();
-  $('ab-stats').textContent =
-    s.domains.toLocaleString() + ' domains · ' + s.blockedTotal.toLocaleString() + ' blocked this session';
+  const r = s.rules || {};
+  const n = (v) => Number(v || 0).toLocaleString();
+  $('ab-stats').textContent = [
+    n(r.network) + ' rules',
+    n(r.hosts) + ' hostnames',
+    n(r.cosmetic) + ' hiding rules',
+    n(s.blockedTotal) + ' blocked this session'
+  ].join('  ·  ');
 
   const box = $('ab-lists');
   box.replaceChildren();
@@ -224,7 +232,9 @@ async function renderAdblock() {
     const label = document.createElement('label');
     label.textContent = l.name;
     const small = document.createElement('small');
-    small.textContent = l.url;
+    // A shipped list is already inside the app; the address is where a newer
+    // copy comes from, not where it has to be fetched before it works.
+    small.textContent = (l.file ? 'Ships with Veil · ' : '') + (l.url || '');
     info.append(label, small);
 
     const ctl = document.createElement('div');

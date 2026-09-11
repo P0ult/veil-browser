@@ -116,7 +116,7 @@ class Updater {
         : age >= STALE_DAYS ? 'stale'
         : 'fresh',
       packaged: app.isPackaged,
-      canSelfUpdate: !!this.load() && app.isPackaged
+      canSelfUpdate: !!this.load() && app.isPackaged && process.platform !== 'linux'
     };
   }
 
@@ -127,6 +127,15 @@ class Updater {
         !app.isPackaged
           ? 'Running from source - update it with git and npm'
           : 'No release feed is configured for this build');
+      return this.status();
+    }
+    // Linux has no update feed. electron-updater can only replace an AppImage,
+    // and a .deb install is the one worth recommending on Ubuntu - so rather
+    // than let it fail with something about a missing AppImage path, this says
+    // what is actually true.
+    if (process.platform === 'linux') {
+      this.set('unconfigured',
+        'Veil cannot update itself on Linux - download the new version from the releases page');
       return this.status();
     }
     try {

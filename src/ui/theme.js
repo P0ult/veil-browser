@@ -61,8 +61,44 @@
     if (a.railColor) root.style.setProperty('--rail-bg', a.railColor);
     else root.style.removeProperty('--rail-bg');
 
+    // Text colour. One choice drives all three weights: the secondary and
+    // tertiary text are the same colour at lower opacity, which is how they
+    // relate in the theme too, so a chosen colour keeps its hierarchy instead
+    // of flattening every label to one shade.
+    if (a.textColor) {
+      const rgb = hexToRgb(a.textColor);
+      const at = (alpha) => (rgb
+        ? 'rgba(' + rgb[0] + ', ' + rgb[1] + ', ' + rgb[2] + ', ' + alpha + ')'
+        : a.textColor);
+      root.style.setProperty('--text', a.textColor);
+      root.style.setProperty('--text-2', at(0.76));
+      root.style.setProperty('--text-3', at(0.54));
+    } else {
+      root.style.removeProperty('--text');
+      root.style.removeProperty('--text-2');
+      root.style.removeProperty('--text-3');
+    }
+
     root.setAttribute('data-outline', a.outline === false ? '0' : '1');
     root.setAttribute('data-glass', a.glass ? '1' : '0');
+
+    // How heavily the glass frosts. 0 is a pane you can almost read through,
+    // 100 is deep frost. The blur, the saturation and the lit edge all move
+    // together - they are the three things that make it read as glass rather
+    // than as a translucent rectangle.
+    if (a.glass) {
+      const lvl = Math.max(0, Math.min(100, a.glassLevel == null ? 60 : Number(a.glassLevel))) / 100;
+      root.style.setProperty('--glass-blur', (4 + lvl * 28).toFixed(1) + 'px');
+      root.style.setProperty('--glass-sat', (1 + lvl * 1.1).toFixed(2));
+      root.style.setProperty('--glass-edge', isLight
+        ? 'rgba(255, 255, 255, ' + (0.45 + lvl * 0.5).toFixed(2) + ')'
+        : 'rgba(255, 255, 255, ' + (0.1 + lvl * 0.34).toFixed(2) + ')');
+      root.style.setProperty('--glass-tint', (0.03 + lvl * 0.09).toFixed(3));
+    } else {
+      for (const k of ['--glass-blur', '--glass-sat', '--glass-edge', '--glass-tint']) {
+        root.style.removeProperty(k);
+      }
+    }
 
     if (!document.body) return;
     ensureLayers();

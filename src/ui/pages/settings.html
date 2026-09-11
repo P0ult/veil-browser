@@ -39,6 +39,14 @@
       </div>
 
       <div class="row">
+        <div class="info"><label>Text</label><small>Blank reads the background and picks light or dark text to suit it. Set a colour and everything written in Veil's own pages and toolbar follows it.</small></div>
+        <div class="ctl">
+          <input type="color" data-bind="appearance.textColor">
+          <input type="text" data-bind="appearance.textColor" style="width:104px" spellcheck="false" placeholder="auto">
+        </div>
+      </div>
+
+      <div class="row">
         <div class="info"><label>Links</label><small>Blank follows the theme, which is blue.</small></div>
         <div class="ctl">
           <input type="color" data-bind="appearance.linkColor">
@@ -57,6 +65,11 @@
       <div class="row">
         <div class="info"><label>Liquid glass</label><small>Frosted, translucent panels with a lit top edge. Panels blur what is behind them inside their own surface - the toolbar and tab bar are separate views from the page, so they cannot blur the page itself.</small></div>
         <div class="ctl"><button class="switch" role="switch" data-bind="appearance.glass"></button></div>
+      </div>
+
+      <div class="row" data-when="appearance.glass=true">
+        <div class="info"><label>Glass intensity</label><small>How thick the frost is: the blur, the colour it pulls through and the brightness of the lit edge all move together.</small></div>
+        <div class="ctl"><input type="range" data-bind="appearance.glassLevel" min="0" max="100" step="5"><span class="val"></span></div>
       </div>
 
       <div class="row">
@@ -370,6 +383,11 @@
         <div class="ctl"><button class="switch" role="switch" data-bind="tunnel.routeSearch"></button></div>
       </div>
 
+      <div class="row">
+        <div class="info"><label>Follow the system proxy</label><small>Off: when the tunnel is not carrying traffic, Veil connects directly instead of using Windows' proxy settings. Windows auto-detection costs about twenty seconds on the first request of every session, and a system proxy can see everything the tunnel is there to hide. Turn this on only if you are behind a proxy you need.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="tunnel.systemProxy"></button></div>
+      </div>
+
       <h2>DNS</h2>
 
       <div class="row">
@@ -490,8 +508,8 @@
       <div id="ab-lists"></div>
 
       <h2>Your rules</h2>
-      <div class="note">One domain per line. Subdomains are covered automatically.</div>
-      <textarea id="ab-custom" rows="6" spellcheck="false" placeholder="tracker.example.com"></textarea>
+      <div class="note">One rule per line, in the same syntax the lists use. A bare domain blocks that domain and everything under it; <code>||example.com^$third-party</code> blocks it only for other sites; <code>example.com##.banner</code> hides an element; <code>@@||example.com/needed.js</code> makes an exception.</div>
+      <textarea id="ab-custom" rows="6" spellcheck="false" placeholder="tracker.example.com&#10;||ads.example.com^$third-party&#10;example.com##.promo-box"></textarea>
 
       <h2>Paused sites</h2>
       <div class="chips" id="ab-allow"></div>

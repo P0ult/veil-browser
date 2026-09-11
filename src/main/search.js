@@ -226,16 +226,16 @@ async function vqdFor(query, session, ia) {
   catch { html = await fetchText(url, session, { timeout: 15000 }); }
   const m = /vqd=["']?([-\w]+)["']?/.exec(html);
   if (!m) throw new Error('no token');
-  return m[1];
+  return { token: m[1], from: url };
 }
 
 async function ddgVideos(query, session, page = 1) {
   const vqd = await vqdFor(query, session, 'videos');
   const offset = (Math.max(1, page) - 1) * 60;
   const url = 'https://duckduckgo.com/v.js?l=us-en&o=json&q=' + encodeURIComponent(query) +
-              '&vqd=' + encodeURIComponent(vqd) + '&f=,,,&p=1&s=' + offset;
+              '&vqd=' + encodeURIComponent(vqd.token) + '&f=,,,&p=1&s=' + offset;
   const body = await fetchText(url, session, {
-    headers: { 'Referer': 'https://duckduckgo.com/', 'Accept': 'application/json' }
+    headers: { 'Referer': vqd.from, 'Accept': 'application/json' }
   });
 
   let data;
@@ -258,9 +258,9 @@ async function ddgNews(query, session, page = 1) {
   const vqd = await vqdFor(query, session, 'news');
   const offset = (Math.max(1, page) - 1) * 30;
   const url = 'https://duckduckgo.com/news.js?l=us-en&o=json&q=' + encodeURIComponent(query) +
-              '&vqd=' + encodeURIComponent(vqd) + '&noamp=1&p=1&s=' + offset;
+              '&vqd=' + encodeURIComponent(vqd.token) + '&noamp=1&p=1&s=' + offset;
   const body = await fetchText(url, session, {
-    headers: { 'Referer': 'https://duckduckgo.com/', 'Accept': 'application/json' }
+    headers: { 'Referer': vqd.from, 'Accept': 'application/json' }
   });
 
   let data;
@@ -288,17 +288,12 @@ async function ddgNews(query, session, page = 1) {
    worth caching beyond the run.                                              */
 
 async function ddgImages(query, session, page = 1) {
-  // The very first request a process makes can spend the whole budget waiting
-  // for the network stack to come up, which would make the first image search
-  // of a session fail for no reason the user could act on. One retry costs
-  // nothing when things are working and hides the cold start when they are not.
+  // One attempt, not two. The retry here used to exist to cover a cold network
+  // stack, and it meant a blocked DuckDuckGo cost twenty-four seconds before
+  // anything else was tried. Bing now covers both cases, and covers them in
+  // three and a half seconds.
   const tokenUrl = 'https://duckduckgo.com/?q=' + encodeURIComponent(query) + '&iax=images&ia=images';
-  let html;
-  try {
-    html = await fetchText(tokenUrl, session, { timeout: 9000 });
-  } catch {
-    html = await fetchText(tokenUrl, session, { timeout: 15000 });
-  }
+  const html = await fetchText(tokenUrl, session, { timeout: 9000 });
 
   const m = /vqd=["']?([-\w]+)["']?/.exec(html) || /vqd=([-\d]+)/.exec(html);
   if (!m) throw new Error('no token');
@@ -307,8 +302,11 @@ async function ddgImages(query, session, page = 1) {
   const url = 'https://duckduckgo.com/i.js?l=us-en&o=json&q=' + encodeURIComponent(query) +
               '&vqd=' + encodeURIComponent(m[1]) + '&f=,,,&p=1&s=' + offset;
 
+  // The referer is the page the token came from, which is what a browser
+  // actually sends here. The bare origin is one of the things DuckDuckGo
+  // takes as a sign the request did not come from its own page.
   const body = await fetchText(url, session, {
-    headers: { 'Referer': 'https://duckduckgo.com/', 'Accept': 'application/json, text/javascript' }
+    headers: { 'Referer': tokenUrl, 'Accept': 'application/json, text/javascript' }
   });
 
   let data;
@@ -337,6 +335,255 @@ async function ddgImages(query, session, page = 1) {
   })).filter(r => /^https:/i.test(r.thumbnail) && /^https?:/i.test(r.source));
 
   return { results, expansions };
+}
+
+/* --------------------------------------------------------- a second source
+
+   DuckDuckGo's picture, video and news endpoints all want a token it only
+   hands out on the HTML page for that query, and it refuses that page - or the
+   endpoint itself, with a 403 - whenever it decides the traffic looks
+   automated. It does that often enough that a search for "dog" could fail for
+   no reason the user could see or act on.
+
+   So none of these verticals depend on one source any more. Bing answers the
+   same three questions without a token: an async fragment for pictures and
+   videos, and an RSS feed for news. It is asked only when DuckDuckGo has
+   already failed or come back empty, and the results page says which one
+   answered.                                                                  */
+
+function bingUrl(pathAndQuery) { return 'https://www.bing.com' + pathAndQuery; }
+
+const BING_HEADERS = {
+  'Referer': 'https://www.bing.com/',
+  'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8'
+};
+
+/** The one JSON blob Bing hangs off each result, as an object. */
+function attrJson(attrs, name) {
+  const raw = attrOf(attrs, name);
+  if (!raw) return null;
+  try { return JSON.parse(decodeEntities(raw)); } catch { return null; }
+}
+
+async function bingImages(query, session, page = 1) {
+  const first = (Math.max(1, page) - 1) * 35 + 1;
+  const html = await fetchText(bingUrl(
+    '/images/async?q=' + encodeURIComponent(query) +
+    '&first=' + first + '&count=35&mmasync=1'), session, { headers: BING_HEADERS, timeout: 9000 });
+
+  if (looksLikeChallenge(html)) throw new Error('bot check');
+
+  // Each result is an anchor carrying a JSON blob, wrapped around the
+  // thumbnail image. The image is where the shape of the picture comes from:
+  // the blob has no dimensions, and the justified rows need a ratio.
+  const out = [];
+  const anchors = [...html.matchAll(/<a\b([^>]*\bclass="iusc"[^>]*)>/gi)];
+  anchors.forEach((a, i) => {
+    const end = i + 1 < anchors.length ? anchors[i + 1].index : html.length;
+    const chunk = html.slice(a.index, end);
+    const m = attrJson(a[1], 'm');
+    if (!m || !m.murl || !m.purl) return;
+
+    const img = /<img\b([^>]*\bclass="mimg"[^>]*)>/i.exec(chunk);
+    const thumb = img ? decodeEntities(attrOf(img[1], 'src')) : '';
+    const w = img ? Number(attrOf(img[1], 'width')) : 0;
+    const h = img ? Number(attrOf(img[1], 'height')) : 0;
+
+    out.push({
+      title: decodeHtml(m.t || '').slice(0, 200),
+      image: String(m.murl),
+      thumbnail: thumb || String(m.turl || m.murl),
+      // These are the thumbnail's dimensions, not the original's. They carry
+      // the one thing the grid needs - the shape - and saying so is better
+      // than printing a made-up size under the picture, so the viewer is told
+      // they are approximate.
+      width: Number.isFinite(w) ? w : 0,
+      height: Number.isFinite(h) ? h : 0,
+      approxSize: true,
+      source: String(m.purl),
+      host: (() => { try { return new URL(m.purl).hostname.replace(/^www\./, ''); } catch { return ''; } })()
+    });
+  });
+
+  return { results: out.filter(r => /^https?:/i.test(r.thumbnail) && /^https?:/i.test(r.source)), expansions: [] };
+}
+
+async function bingVideos(query, session, page = 1) {
+  const first = (Math.max(1, page) - 1) * 30 + 1;
+  const html = await fetchText(bingUrl(
+    '/videos/asyncv2?q=' + encodeURIComponent(query) +
+    '&async=content&first=' + first + '&count=30&mmasync=1'), session,
+    { headers: BING_HEADERS, timeout: 9000 });
+
+  if (looksLikeChallenge(html)) throw new Error('bot check');
+
+  // The thumbnail lives in one attribute and everything else in another, on
+  // different elements of the same card. They are joined on the video's URL
+  // rather than on position, which no longer holds when a card is missing one.
+  const thumbs = new Map();
+  for (const m of html.matchAll(/\bmmeta="([^"]*)"/gi)) {
+    try {
+      const j = JSON.parse(decodeEntities(m[1]));
+      if (j && j.murl && j.turl) thumbs.set(String(j.murl), String(j.turl));
+    } catch {}
+  }
+
+  const cards = [...html.matchAll(/\bvrhm="([^"]*)"/gi)];
+  const out = [];
+  cards.forEach((c, i) => {
+    let j = null;
+    try { j = JSON.parse(decodeEntities(c[1])); } catch { return; }
+    if (!j || !j.murl || !j.vt) return;
+
+    const end = i + 1 < cards.length ? cards[i + 1].index : html.length;
+    const chunk = html.slice(c.index, end);
+    const views = /meta_vc_content">([^<]+)/i.exec(chunk);
+    const publisher = /mc_vtvc_meta_row"><span>([^<]+)/i.exec(chunk);
+    const channel = /mc_vtvc_meta_row_channel">([^<]+)/i.exec(chunk);
+
+    out.push({
+      title: decodeHtml(j.vt).slice(0, 200),
+      url: String(j.murl),
+      description: '',
+      thumbnail: thumbs.get(String(j.murl)) ||
+                 (j.thid ? 'https://tse1.mm.bing.net/th?id=' + encodeURIComponent(j.thid) + '&pid=Api' : ''),
+      duration: String(j.du || ''),
+      publisher: publisher ? decodeHtml(publisher[1]) : '',
+      uploader: channel ? decodeHtml(channel[1]) : '',
+      published: '',
+      views: 0,
+      // Already written out as "2.7M views"; there is no number behind it to
+      // format, so the page is handed the words.
+      viewsText: views ? decodeHtml(views[1]).replace(/\s*views?$/i, '') : ''
+    });
+  });
+
+  return out.filter(v => /^https?:/i.test(v.url));
+}
+
+/** Bing publishes news as RSS, which needs no token and no scraping at all. */
+async function bingNews(query, session, page = 1) {
+  const first = (Math.max(1, page) - 1) * 10 + 1;
+  const xml = await fetchText(bingUrl(
+    '/news/search?q=' + encodeURIComponent(query) + '&format=RSS&first=' + first), session,
+    { headers: BING_HEADERS, timeout: 9000 });
+
+  const pick = (block, tag) => {
+    const m = new RegExp('<' + tag + '>([\\s\\S]*?)</' + tag + '>', 'i').exec(block);
+    return m ? decodeEntities(m[1]).replace(/^<!\[CDATA\[|\]\]>$/g, '').trim() : '';
+  };
+
+  const out = [];
+  for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)) {
+    const block = m[1];
+    // Bing wraps every link in a click tracker with the real address inside it.
+    const url = unwrapRedirect(pick(block, 'link'));
+    const title = stripTags(pick(block, 'title'));
+    if (!/^https?:/i.test(url) || !title) continue;
+
+    const when = pick(block, 'pubDate');
+    const date = Math.floor(Date.parse(when) / 1000);
+    // The image comes as a template: the feed says where to put the size.
+    const image = pick(block, 'News:Image');
+
+    out.push({
+      title: title.slice(0, 220),
+      url,
+      excerpt: stripTags(pick(block, 'description')).slice(0, 400),
+      source: stripTags(pick(block, 'News:Source')),
+      image: image ? image + '&w=400&h=225&c=14' : '',
+      when: relativeWhen(date),
+      date: Number.isFinite(date) ? date : 0
+    });
+  }
+  return out.sort((a, b) => b.date - a.date);
+}
+
+/** "3 days ago", from a unix timestamp. The RSS gives an absolute date only. */
+function relativeWhen(sec) {
+  if (!Number.isFinite(sec) || sec <= 0) return '';
+  const mins = Math.floor((Date.now() / 1000 - sec) / 60);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return mins + ' minutes ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + (hours === 1 ? ' hour ago' : ' hours ago');
+  const days = Math.floor(hours / 24);
+  if (days < 30) return days + (days === 1 ? ' day ago' : ' days ago');
+  const months = Math.round(days / 30);
+  if (months < 12) return months + (months === 1 ? ' month ago' : ' months ago');
+  return Math.round(days / 365) + ' years ago';
+}
+
+/**
+ * Ask the sources in order, and take the first that actually answers.
+ *
+ * "Answers" means came back with something: a source that returns an empty
+ * list has not answered the question, it has just failed quietly, and falling
+ * through to the next one is the whole point of having a second.
+ *
+ * The next source is started either when the one before it fails, or when it
+ * has been quiet for `hedgeMs` - so a source that is being slow rather than
+ * refusing does not hold up the page, and a source that is working is still
+ * the one whose answer gets used. Both may end up in flight; whichever comes
+ * back first with results wins.
+ *
+ * Every failure is kept, so that when none of them worked the page can say
+ * what each one said rather than "search failed".
+ */
+const HEDGE_MS = 3500;
+
+function firstAnswer(attempts, hedgeMs = HEDGE_MS) {
+  return new Promise((resolve) => {
+    const notes = [];
+    const timers = [];
+    let started = 0;
+    let running = 0;
+    let done = false;
+
+    const finish = (value, source) => {
+      if (done) return;
+      done = true;
+      for (const t of timers) clearTimeout(t);
+      resolve({ value, source, notes });
+    };
+
+    const next = () => {
+      if (done || started >= attempts.length) return;
+      const [name, run] = attempts[started++];
+      running++;
+
+      // The hedge. A source that has not answered by now is not necessarily
+      // broken - but waiting out its whole timeout before even asking the
+      // next one is what turned a blocked DuckDuckGo into a twenty-second
+      // wait on a search for "dog".
+      timers.push(setTimeout(next, hedgeMs));
+
+      Promise.resolve().then(run).then(
+        (value) => {
+          running--;
+          const list = Array.isArray(value) ? value : (value && value.results) || [];
+          if (list.length) return finish(value, name);
+          notes.push(name + ' had nothing for it');
+          next();
+          if (!running && started >= attempts.length) finish(null, '');
+        },
+        (e) => {
+          running--;
+          notes.push(name + ': ' + (e.message || 'failed'));
+          next();
+          if (!running && started >= attempts.length) finish(null, '');
+        }
+      );
+    };
+
+    next();
+  });
+}
+
+/** What to put on the page when nothing came back. */
+function whyNot(what, got, rawCount) {
+  if (rawCount > 0) return 'Every result was filtered out.';
+  return 'No ' + what + ' came back. ' + (got.notes.length ? got.notes.join('. ') + '.' : '');
 }
 
 /* ------------------------------------------------------------------ backends */
@@ -526,6 +773,18 @@ const WEIGHT = { duckduckgo: 1, mojeek: 0.85, marginalia: 0.55 };
 // How long a supporting engine or the answer card may delay the results page.
 const SECONDARY_DEADLINE = 6000;
 
+/**
+ * How long the main engine gets before the page is drawn without it.
+ *
+ * DuckDuckGo can take two attempts of fifteen seconds each when it is being
+ * throttled or blocked, and a search that sits there for half a minute reads
+ * as a broken browser rather than a slow engine. Past this point the results
+ * that did arrive are shown, with a line saying who did not answer. The
+ * request is not cancelled - if it lands later it goes into the page cache
+ * and the next page of that search is instant.
+ */
+const PRIMARY_DEADLINE = 12000;
+
 function fuse(lists, limit, strip) {
   const byKey = new Map();
   for (const list of lists) {
@@ -606,20 +865,23 @@ class SearchEngine {
     const q = String(query || '').trim();
     if (!q) return { query: q, page: 1, results: [], expansions: [], error: '' };
     const started = Date.now();
-    try {
-      const { results, expansions } = await ddgImages(q, this.session, page);
-      const hideAi = this.settings.get('search.hideAiImages', true);
-      const kept = hideAi ? results.filter(r => !looksGenerated(r)) : results;
-      return {
-        query: q, page, results: kept, expansions,
-        hidden: results.length - kept.length,
-        took: Date.now() - started, error: ''
-      };
-    } catch (e) {
-      return { query: q, page, results: [], expansions: [], hidden: 0,
-               took: Date.now() - started,
-               error: 'Image search did not answer (' + (e.message || 'failed') + ')' };
-    }
+
+    const got = await firstAnswer([
+      ['DuckDuckGo', () => ddgImages(q, this.session, page)],
+      ['Bing', () => bingImages(q, this.session, page)]
+    ]);
+
+    const { results, expansions } = got.value || { results: [], expansions: [] };
+    const hideAi = this.settings.get('search.hideAiImages', true);
+    const kept = hideAi ? results.filter(r => !looksGenerated(r)) : results;
+
+    return {
+      query: q, page, results: kept, expansions: expansions || [],
+      hidden: results.length - kept.length,
+      source: got.source,
+      took: Date.now() - started,
+      error: kept.length ? '' : whyNot('pictures', got, results.length)
+    };
   }
 
   /** Video results. A different shape again, so it gets its own call. */
@@ -627,26 +889,34 @@ class SearchEngine {
     const q = String(query || '').trim();
     if (!q) return { query: q, page: 1, results: [], error: '' };
     const started = Date.now();
-    try {
-      const results = await ddgVideos(q, this.session, page);
-      return { query: q, page, results, took: Date.now() - started, error: '' };
-    } catch (e) {
-      return { query: q, page, results: [], took: Date.now() - started,
-               error: 'Video search did not answer (' + (e.message || 'failed') + ')' };
-    }
+
+    const got = await firstAnswer([
+      ['DuckDuckGo', () => ddgVideos(q, this.session, page)],
+      ['Bing', () => bingVideos(q, this.session, page)]
+    ]);
+
+    return {
+      query: q, page, results: got.value || [], source: got.source,
+      took: Date.now() - started,
+      error: (got.value || []).length ? '' : whyNot('videos', got, 0)
+    };
   }
 
   async news(query, page = 1) {
     const q = String(query || '').trim();
     if (!q) return { query: q, page: 1, results: [], error: '' };
     const started = Date.now();
-    try {
-      const results = await ddgNews(q, this.session, page);
-      return { query: q, page, results, took: Date.now() - started, error: '' };
-    } catch (e) {
-      return { query: q, page, results: [], took: Date.now() - started,
-               error: 'News search did not answer (' + (e.message || 'failed') + ')' };
-    }
+
+    const got = await firstAnswer([
+      ['DuckDuckGo', () => ddgNews(q, this.session, page)],
+      ['Bing', () => bingNews(q, this.session, page)]
+    ]);
+
+    return {
+      query: q, page, results: got.value || [], source: got.source,
+      took: Date.now() - started,
+      error: (got.value || []).length ? '' : whyNot('stories', got, 0)
+    };
   }
 
   /**
@@ -661,19 +931,43 @@ class SearchEngine {
     const q = String(query || '').trim();
     if (!q) return { query: q, page: 1, results: [], error: '' };
     const started = Date.now();
-    try {
-      const { results } = await ddgImages(q, this.session, page);
-      const shops = results.filter(r => isRetail(r.host));
-      return {
-        query: q, page, results: shops,
-        scanned: results.length,
-        took: Date.now() - started,
-        error: shops.length ? '' : 'No retailers in these results.'
-      };
-    } catch (e) {
-      return { query: q, page, results: [], scanned: 0, took: Date.now() - started,
-               error: 'Shopping search did not answer (' + (e.message || 'failed') + ')' };
+
+    const got = await firstAnswer([
+      ['DuckDuckGo', () => ddgImages(q, this.session, page)],
+      ['Bing', () => bingImages(q, this.session, page)]
+    ]);
+
+    const results = (got.value && got.value.results) || [];
+    let shops = results.filter(r => isRetail(r.host));
+    let scanned = results.length;
+
+    // A thin first pass is worth a second, differently worded one: asking for
+    // the thing "for sale" moves the balance of a picture search towards
+    // listings. Measured rather than assumed - it is a few more each time, not
+    // a transformation - so it is only done when the first pass was thin.
+    if (shops.length < 8 && results.length) {
+      const more = await firstAnswer([
+        ['DuckDuckGo', () => ddgImages(q + ' for sale', this.session, page)],
+        ['Bing', () => bingImages(q + ' for sale', this.session, page)]
+      ]).catch(() => null);
+
+      const extra = (more && more.value && more.value.results) || [];
+      const seen = new Set(shops.map(r => r.image));
+      for (const r of extra) {
+        if (isRetail(r.host) && !seen.has(r.image)) { seen.add(r.image); shops.push(r); }
+      }
+      scanned += extra.length;
     }
+
+    return {
+      query: q, page, results: shops,
+      scanned,
+      source: got.source,
+      took: Date.now() - started,
+      error: shops.length ? ''
+        : results.length ? 'Nothing from a retailer Veil recognises in these results.'
+        : whyNot('listings', got, 0)
+    };
   }
 
   urlForQuery(query) {
@@ -733,7 +1027,7 @@ class SearchEngine {
     const errors = [];
 
     const ddgJob = cfg.duckduckgo !== false
-      ? this.ddgPage(query, page, errors)
+      ? softCap(this.ddgPage(query, page, errors), PRIMARY_DEADLINE, { results: [], next: null, late: true })
       : Promise.resolve({ results: [], next: null });
 
     const others = [];
@@ -754,6 +1048,7 @@ class SearchEngine {
       : Promise.resolve(null);
 
     const [ddg, otherLists, answer] = await Promise.all([ddgJob, Promise.all(others), answerJob]);
+    if (ddg.late) errors.push('DuckDuckGo did not answer in time - showing what the other engines found');
     const results = fuse([ddg.results, ...otherLists], limit, strip);
 
     return {

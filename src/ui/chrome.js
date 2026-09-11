@@ -11,7 +11,8 @@ const els = {
   prompt: $('prompt'), promptText: $('prompt-text'), promptActions: $('prompt-actions'),
   topbar: $('topbar'), toolbar: $('toolbar'),
   tabstrip: $('tabstrip'), topTabs: $('top-tabs'),
-  wincontrols: $('wincontrols')
+  wincontrols: $('wincontrols'),
+  centreShortcuts: $('centre-shortcuts')
 };
 
 let state = { tabs: [], activeId: null };
@@ -262,11 +263,60 @@ els.url.addEventListener('keydown', (e) => {
   }
 });
 
+/* ------------------------------------------------- the minimal new tab
+
+   The shortcuts under the search box. They are the same ones the tab rail
+   shows, so a new tab opened this way is not a worse start page than the
+   ordinary one - it just has the page you were reading behind it instead of
+   a blank sheet.
+
+   Mousedown is swallowed rather than allowed through: pressing a chip would
+   otherwise blur the omnibox, and a blur closes the whole minimal tab - the
+   panel would be gone before the click landed on anything. */
+function renderCentreShortcuts() {
+  const host = els.centreShortcuts;
+  if (!host) return;
+  host.replaceChildren();
+  const list = ((settings && settings.browser && settings.browser.shortcuts) || []).slice(0, 6);
+
+  for (const s of list) {
+    if (!s || !s.url) continue;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.title = s.url;
+
+    const glyph = document.createElement('span');
+    glyph.className = 'glyph';
+    const host2 = hostOf(s.url) || s.title || '?';
+    glyph.style.background = `hsl(${hue(host2)} 58% 64%)`;
+    glyph.textContent = (s.title || host2 || '?')[0].toUpperCase();
+
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = s.title || host2;
+
+    b.append(glyph, label);
+    b.addEventListener('mousedown', (e) => e.preventDefault());
+    b.addEventListener('click', () => {
+      veil.nav.goNewTab(s.url);
+      veil.closeCentre();
+    });
+    host.append(b);
+  }
+}
+
 /* The minimal new tab reuses this whole document; only its shape changes. */
 veil.on('chromeMode', (mode) => {
-  els.chrome.dataset.chromeMode = mode === 'centre' ? 'centre' : 'bar';
-  if (mode === 'centre') { els.url.value = ''; }
-  reportLayout();
+  const centre = mode === 'centre';
+  els.chrome.dataset.chromeMode = centre ? 'centre' : 'bar';
+  if (centre) {
+    els.url.value = '';
+    renderCentreShortcuts();
+  }
+  // Coming back from the panel, the view has not been given its toolbar
+  // rectangle back yet, so measuring now would report the panel's height as
+  // the toolbar's. A frame later it is the toolbar again.
+  requestAnimationFrame(reportLayout);
 });
 
 /* ----------------------------------------------------------------- controls */
@@ -426,7 +476,12 @@ veil.on('window', (w) => {
   use.setAttribute('href', w.maximized ? '#i-win-restore' : '#i-win-max');
   $('win-max').title = w.maximized ? 'Restore' : 'Maximise';
 });
-veil.on('settings', (s) => { settings = s; VeilTheme.apply(s); applyLayout(s); });
+veil.on('settings', (s) => {
+  settings = s;
+  VeilTheme.apply(s);
+  applyLayout(s);
+  if (els.chrome.dataset.chromeMode === 'centre') renderCentreShortcuts();
+});
 veil.on('focusOmnibox', () => { els.url.focus(); els.url.select(); });
 veil.on('openFind', openFind);
 veil.on('findNext', (forward) => { if (findOpen) runFind(forward !== false, true); else openFind(); });
@@ -465,8 +520,13 @@ function applyLayout(s) {
   reportLayout();
 }
 
-/** How tall the chrome wants to be. The main process decides where to put it. */
+/** How tall the chrome wants to be. The main process decides where to put it.
+ *
+ *  Not while it is a minimal new tab: then this document fills a tall panel in
+ *  the middle of the window, and reporting that as the toolbar's height would
+ *  leave a toolbar the height of the panel behind when the panel closes. */
 function reportLayout() {
+  if (els.chrome.dataset.chromeMode === 'centre') return;
   const mode = els.chrome.dataset.mode === 'side' ? 'side' : 'top';
   const top = Math.ceil(els.chrome.getBoundingClientRect().height);
   veil.reportLayout({ mode, top });

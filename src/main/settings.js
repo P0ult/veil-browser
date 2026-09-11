@@ -14,7 +14,7 @@ function findVpn() {
 }
 
 const DEFAULTS = {
-  version: 4,
+  version: 6,
   appearance: {
     accent: '#7dd3a0',
     bgType: 'gradient',            // solid | gradient | image
@@ -44,8 +44,10 @@ const DEFAULTS = {
     showShortcuts: false,          // they live in the tab rail now; this is the start page's copy
     linkColor: '',                 // blank = the theme's blue
     railColor: '',                 // blank = the same surface as the rest of the chrome
+    textColor: '',                 // blank = read off the background, light on dark
     outline: true,                 // a hard edge on controls, so any background stays usable
-    glass: false                   // frosted, translucent surfaces
+    glass: false,                  // frosted, translucent surfaces
+    glassLevel: 60                 // 0..100: how heavily they frost
   },
   search: {
     engine: 'veil',                // veil | duckduckgo | mojeek | startpage | brave | wikipedia | custom
@@ -89,7 +91,17 @@ const DEFAULTS = {
   adblock: {
     customBlock: [],
     allowlist: [],
+    // The first five ship inside Veil and are on by default: they are the
+    // lists uBlock Origin uses by default too. `file` names the copy that
+    // shipped; `url` is where a fresher one comes from, and once one has been
+    // downloaded it is used instead. The rest are hostname lists, off by
+    // default because they overlap heavily with what is already here.
     lists: [
+      { name: 'EasyList', file: 'easylist.txt', url: 'https://easylist.to/easylist/easylist.txt', enabled: true },
+      { name: 'EasyPrivacy', file: 'easyprivacy.txt', url: 'https://easylist.to/easylist/easyprivacy.txt', enabled: true },
+      { name: 'uBlock Origin filters', file: 'ubo-filters.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt', enabled: true },
+      { name: 'uBlock Origin privacy', file: 'ubo-privacy.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/privacy.txt', enabled: true },
+      { name: 'uBlock Origin badware', file: 'ubo-badware.txt', url: 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/badware.txt', enabled: true },
       { name: 'StevenBlack unified hosts', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts', enabled: false },
       { name: 'AdGuard DNS filter', url: 'https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt', enabled: false },
       { name: 'Peter Lowe ad servers', url: 'https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext', enabled: false }
@@ -111,6 +123,12 @@ const DEFAULTS = {
     torPath: '',                   // point at an existing tor.exe instead of downloading
     killSwitch: true,              // block traffic if an established tunnel drops
     routeSearch: true,             // send search queries through it too
+    // Off means Veil connects directly when the tunnel is not carrying
+    // traffic, instead of following the machine's proxy settings. On Windows
+    // that auto-detection costs about twenty seconds on the first request of
+    // every session, and a system proxy sees everything the tunnel exists to
+    // hide. Turn it on if you are behind a proxy you actually need.
+    systemProxy: false,
 
     // wstunnel provider: where the endpoint is published, and what to ask the
     // far side for. Leave remoteSocks blank to request a dynamic SOCKS5 tunnel,
@@ -217,6 +235,40 @@ function migrate(data) {
     if (a.theme === 'light' && !a.bgColor) a.bgColor = '#f2f4f7';
     delete a.theme;
     data.version = 4;
+    changed = true;
+  }
+
+  if (data.version === 4) {
+    // Two new appearance keys. Both are additions rather than replacements, so
+    // there is nothing to convert - but the step still has to exist, or a
+    // version-4 file would never be stamped as current and would walk this
+    // chain again on every launch.
+    const a = data.appearance || (data.appearance = {});
+    if (a.textColor === undefined) a.textColor = '';
+    if (a.glassLevel === undefined) a.glassLevel = 60;
+    data.version = 5;
+    changed = true;
+  }
+
+  if (data.version === 5) {
+    // Veil now ships real filter lists and reads them with a real engine. An
+    // existing profile has the old three hostname lists written into it, all
+    // off, and a plain merge would leave it with no lists at all - the new
+    // defaults would be overwritten by the saved array. So the shipped lists
+    // are put back, the user's choices about the old ones are kept, and
+    // anything they added themselves is left where it was.
+    const ab = data.adblock || (data.adblock = {});
+    const had = new Map((ab.lists || []).map(l => [l.url, l]));
+    const fresh = clone(DEFAULTS.adblock.lists);
+
+    for (const l of fresh) {
+      const old = had.get(l.url);
+      if (old && typeof old.enabled === 'boolean' && !l.file) l.enabled = old.enabled;
+      had.delete(l.url);
+    }
+    // Whatever is left was added by the user.
+    ab.lists = fresh.concat([...had.values()]);
+    data.version = 6;
     changed = true;
   }
 

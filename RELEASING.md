@@ -129,6 +129,40 @@ npm run release:mac   # build and upload to the draft release
 
 ---
 
+## 1c. Linux (Ubuntu and anything close to it)
+
+The `linux` job builds on an Ubuntu runner and produces two things:
+
+- `Veil-1.0.7.AppImage` — runs from anywhere, installs nothing
+- `veil-browser_1.0.7_amd64.deb` — `sudo apt install ./veil-browser_1.0.7_amd64.deb`
+
+**Prefer the .deb.** Electron's sandbox needs a helper binary owned by root
+with the setuid bit set. Installing the .deb does that; an AppImage cannot,
+because it is never installed. On Ubuntu 24.04 and later, where unprivileged
+user namespaces are restricted by AppArmor, that difference decides whether the
+app starts at all. If the AppImage refuses to start with a message about the
+SUID sandbox helper, this is why, and:
+
+```bash
+./Veil-1.0.7.AppImage --no-sandbox
+```
+
+will start it — at the cost of the renderer sandbox, which is not a trade worth
+making permanently in a browser. The .deb is the answer.
+
+There is no code signing on Linux and nothing expects any, so unlike macOS
+this build has no Gatekeeper problem to work around. Auto-updates are not
+wired up for Linux: electron-updater supports AppImage updates, but Veil's
+updater has only ever been pointed at the Windows and macOS feeds, so Linux
+users are told about a new version and install it by hand.
+
+```bash
+npm run dist:linux     # local build on a Linux machine, no upload
+npm run release:linux  # build and upload to the draft release
+```
+
+---
+
 ## 2. Signing
 
 ### What it actually buys you
