@@ -44,8 +44,48 @@ class AdBlock {
     this.listsKey = '';
     this.buildTime = 0;
 
+    this.ensureBundled();
     this.buildLists();
     this.buildUser();
+  }
+
+  /**
+   * The lists that ship with Veil are in the list, always.
+   *
+   * They arrive in a profile through a settings migration, and a profile that
+   * for any reason never runs that migration is left with the three hostname
+   * lists of two versions ago, all switched off - which is a browser carrying
+   * four and a half megabytes of filter lists and using none of them. That
+   * happened, and the way it showed up was YouTube adverts: no lists means no
+   * scriptlets, and scriptlets are the only thing that stops those.
+   *
+   * So the shipped lists are reconciled into the profile on every start
+   * instead of only on the version step. A list the user has switched off
+   * stays off - this adds what is missing, it does not overrule a choice.
+   */
+  ensureBundled() {
+    const saved = this.settings.get('adblock.lists', []) || [];
+    const known = new Map(saved.map(l => [l.url, l]));
+    let changed = false;
+
+    const merged = [];
+    for (const b of BUNDLED) {
+      const existing = known.get(b.url);
+      if (existing) {
+        // It is one of ours: make sure it knows where its shipped copy is, so
+        // it works before anything has been downloaded.
+        if (existing.file !== b.file) { existing.file = b.file; changed = true; }
+        merged.push(existing);
+        known.delete(b.url);
+      } else {
+        merged.push({ ...b, enabled: true });
+        changed = true;
+      }
+    }
+    // Everything else the profile had, in the order it had it.
+    for (const l of saved) if (known.has(l.url)) merged.push(l);
+
+    if (changed) this.settings.update({ adblock: { lists: merged } });
   }
 
   /* ------------------------------------------------------------ building */
