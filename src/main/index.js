@@ -11,6 +11,7 @@ const { Vpn } = require('./vpn');
 const { Tunnel } = require('./tunnel');
 const { Vault } = require('./vault');
 const { VPN_PICKER, APP_ICON } = require('./platform');
+const identity = require('./identity');
 const { edgesReached } = require('./hover');
 const { computeLayout } = require('./layout');
 const { Updater } = require('./updater');
@@ -511,11 +512,15 @@ function createSessions() {
     }
   }
 
-  const chromeVersion = process.versions.chrome.split('.')[0];
-  const ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.0 Safari/537.36`;
+  // One answer about what this browser is, given in ./identity and repeated
+  // by the header, the user agent and the JavaScript object alike.
+  const ua = identity.userAgent();
   app.userAgentFallback = ua;
-  browseSession.setUserAgent(ua);
-  searchSession.setUserAgent(ua);
+  // The second argument is Accept-Language. Left alone it went out as bare
+  // "en-US" while navigator.languages said something else - two answers to the
+  // same question, which is the shape of thing these checks look for.
+  browseSession.setUserAgent(ua, 'en-US,en;q=0.9');
+  searchSession.setUserAgent(ua, 'en-US,en;q=0.9');
 
   browseSession.setSpellCheckerEnabled(false);
 
@@ -837,6 +842,20 @@ function wireIpc() {
     if (!settings.get('privacy.cosmeticFiltering', true)) return false;
     return !adblock.isAllowedSite(host);
   }
+
+  /**
+   * What the page should say it is running in.
+   *
+   * Reachable from ordinary web pages, like the cosmetic handlers: it tells a
+   * page only what Veil already puts in the request headers it sends on that
+   * page's behalf.
+   */
+  ipcMain.handle('page:identity', () => ({
+    brands: identity.brands(),
+    platform: identity.platformName(),
+    version: identity.chromeMajor(),
+    fullVersion: process.versions.chrome
+  }));
 
   ipcMain.handle('page:cosmetic', (event) => {
     const host = cosmeticHost(event);

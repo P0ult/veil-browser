@@ -33,6 +33,8 @@ function hostOf(url) {
 
 const STATIC_TYPES = new Set(['image', 'stylesheet', 'font', 'media']);
 
+const CLIENT_HINTS = require('./identity').clientHints();
+
 class NetPrivacy {
   /**
    * @param {Electron.Session} session
@@ -169,6 +171,14 @@ class NetPrivacy {
     wr.onBeforeSendHeaders((details, cb) => {
       const headers = details.requestHeaders;
       try {
+        // Chrome puts these on every request. Overriding the user agent in
+        // Electron stops Chromium sending them, and a browser calling itself
+        // Chrome while sending no client hints is one no site has ever seen -
+        // which is what Google's sign-in page objects to.
+        for (const [k, v] of Object.entries(CLIENT_HINTS)) {
+          if (headers[k] === undefined) headers[k] = v;
+        }
+
         if (this.p('sendDnt')) {
           headers['DNT'] = '1';
           headers['Sec-GPC'] = '1';

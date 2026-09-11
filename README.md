@@ -189,6 +189,21 @@ make you look like everybody else. Tor Browser and Mullvad Browser do the
 latter, and they give up a lot of usability for it. Screen metrics and timezone
 are not spoofed here.
 
+### Saying the same thing everywhere
+
+Veil *is* Chromium, but Electron dresses it differently from Chrome in three
+ways that sites use to tell an embedded browser from a real one: no `Sec-CH-UA`
+client-hint headers, a brand list with Chromium but no Google Chrome, and an
+empty `window.chrome`. Google's sign-in refuses all three — "this browser may
+not be secure". `src/main/identity.js` holds one answer and every surface
+repeats it: the header, the user agent string and the JavaScript object agree.
+
+That includes naming the real platform. The user agent used to claim Windows on
+every machine, which would be the more anonymous choice if anything else backed
+it up — but the client hints, `navigator.platform` and the font list all say
+what the machine really is, so the only thing the lie bought was a
+contradiction that marked Veil out as something odd.
+
 The defences are inlined into `src/preload/page.js` rather than living in their
 own module, because tab preloads run sandboxed and a sandboxed preload can only
 `require('electron')` — a relative require fails at load and takes the whole

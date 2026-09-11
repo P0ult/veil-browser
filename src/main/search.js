@@ -11,7 +11,10 @@ const { net } = require('electron');
  * query is ever written to disk.
  */
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+// The same identity the browsing session uses. This used to name Chrome 125
+// forever, which by now is ten major versions stale - a thing search engines
+// notice when they are deciding whether traffic looks automated.
+const UA = require('./identity').userAgent();
 
 const TRACKING_PARAMS = [
   /^utm_/i, /^ga_/i, /^_ga$/i, /^gclid$/i, /^gclsrc$/i, /^dclid$/i, /^gbraid$/i, /^wbraid$/i,
@@ -91,13 +94,15 @@ function looksLikeChallenge(html) {
   return /Just a moment|cf-browser-verification|challenge-platform|challenge\.js|g-recaptcha|hcaptcha|Enable JavaScript and cookies to continue/i.test(html);
 }
 
-const HEADERS = {
+const CLIENT_HINTS = require('./identity').clientHints();
+
+const HEADERS = Object.assign({
   'User-Agent': UA,
   'Accept': 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
   'Accept-Language': 'en-US,en;q=0.9',
   'DNT': '1',
   'Sec-GPC': '1'
-};
+}, CLIENT_HINTS);
 
 /**
  * Deliberately net.request rather than net.fetch: only net.request honours the

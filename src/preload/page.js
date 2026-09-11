@@ -166,6 +166,123 @@ function installDefences(seed, cfg) {
   }
 }
 
+
+/* ------------------------------------------------------- being a browser
+
+   Veil is Chromium, but Electron leaves three tells that sites use to pick an
+   embedded browser out of a line-up, and Google's sign-in page refuses all
+   three: `navigator.userAgentData` lists Chromium without Google Chrome, the
+   `window.chrome` object is empty where Chrome's carries app, csi, loadTimes
+   and runtime, and the two together disagree with the user agent string.
+
+   This is not a disguise. It is the same answer the main process already
+   gives in the request headers, repeated where a page looks for it, so that
+   every surface says the one true thing: recent Chromium, on this platform.
+
+   Stringified into the page's own world, so it can only use what `args` hands
+   it - the same constraint the fingerprinting defences run under.           */
+
+function installIdentity(info) {
+  if (window.__veilId) return;
+  try {
+    Object.defineProperty(window, '__veilId', { value: true, enumerable: false });
+  } catch { return; }
+
+  const define = (obj, prop, value) => {
+    try { Object.defineProperty(obj, prop, { get: () => value, configurable: true }); }
+    catch {}
+  };
+
+  /* ------------------------------------------------- navigator.userAgentData */
+
+  const NP = window.Navigator && Navigator.prototype;
+  const real = navigator.userAgentData || null;
+
+  if (NP && 'userAgentData' in NP) {
+    const brands = Object.freeze(info.brands.map(b => Object.freeze({ ...b })));
+    const full = Object.freeze(info.brands.map(
+      b => Object.freeze({ brand: b.brand, version: b.brand === 'Not?A_Brand' ? '24.0.0.0' : info.fullVersion })));
+
+    const data = {
+      get brands() { return brands; },
+      get mobile() { return false; },
+      get platform() { return info.platform; },
+      toJSON() { return { brands, mobile: false, platform: info.platform }; },
+      getHighEntropyValues(hints) {
+        // Answer from the real object where it can, so anything not listed
+        // here - architecture, bitness, model - stays truthful.
+        const base = real && real.getHighEntropyValues
+          ? real.getHighEntropyValues(hints)
+          : Promise.resolve({});
+        return base.then((v) => {
+          const out = Object.assign({}, v, { brands, mobile: false, platform: info.platform });
+          if (!hints || hints.includes('fullVersionList')) out.fullVersionList = full;
+          if ((!hints || hints.includes('uaFullVersion')) && info.fullVersion) out.uaFullVersion = info.fullVersion;
+          return out;
+        });
+      }
+    };
+    define(NP, 'userAgentData', data);
+  }
+
+  /* ------------------------------------------------------------ window.chrome
+
+     Chrome's page-side object. An empty one is the single most quoted
+     giveaway for an embedded or headless browser, so the members Chrome
+     actually exposes are given plausible shapes rather than left missing. */
+
+  const started = Date.now();
+  const chrome = window.chrome && typeof window.chrome === 'object' ? window.chrome : {};
+
+  if (!chrome.app) {
+    chrome.app = {
+      isInstalled: false,
+      InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' },
+      RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' },
+      getDetails: () => null,
+      getIsInstalled: () => false,
+      runningState: () => 'cannot_run'
+    };
+  }
+  if (!chrome.csi) {
+    chrome.csi = () => ({
+      startE: started,
+      onloadT: started + 300,
+      pageT: Date.now() - started,
+      tran: 15
+    });
+  }
+  if (!chrome.loadTimes) {
+    chrome.loadTimes = () => ({
+      requestTime: started / 1000,
+      startLoadTime: started / 1000,
+      commitLoadTime: started / 1000,
+      finishDocumentLoadTime: (started + 200) / 1000,
+      finishLoadTime: (started + 300) / 1000,
+      firstPaintTime: (started + 250) / 1000,
+      firstPaintAfterLoadTime: 0,
+      navigationType: 'Other',
+      wasFetchedViaSpdy: true,
+      wasNpnNegotiated: true,
+      npnNegotiatedProtocol: 'h2',
+      wasAlternateProtocolAvailable: false,
+      connectionInfo: 'h2'
+    });
+  }
+  if (!chrome.runtime) {
+    // What a page sees with no extension talking to it: the namespace exists,
+    // the id does not.
+    chrome.runtime = {
+      id: undefined,
+      connect: () => { throw new TypeError('Error in invocation of runtime.connect'); },
+      sendMessage: () => { throw new TypeError('Error in invocation of runtime.sendMessage'); },
+      OnInstalledReason: { CHROME_UPDATE: 'chrome_update', INSTALL: 'install', UPDATE: 'update' },
+      PlatformOs: { ANDROID: 'android', CROS: 'cros', LINUX: 'linux', MAC: 'mac', WIN: 'win' }
+    };
+  }
+  try { window.chrome = chrome; } catch {}
+}
+
 /* ------------------------------------------------- cosmetic ad filtering
 
    Network blocking removes the advert; the empty box it was sitting in stays
@@ -306,6 +423,13 @@ function onReady(fn) {
 /* Fingerprinting defences go in before any page script runs. The seed comes
    from the main process: one secret per run, mixed with this page's origin, so
    the readings a site takes are stable for it and different for everyone else. */
+if (!isInternal && isWeb) {
+  ipcRenderer.invoke('page:identity').then((info) => {
+    if (!info || !Array.isArray(info.brands)) return;
+    contextBridge.executeInMainWorld({ func: installIdentity, args: [info] });
+  }).catch(() => {});
+}
+
 if (!isInternal && isWeb) {
   ipcRenderer.invoke('page:fingerprint', location.origin).then((cfg) => {
     if (!cfg || !cfg.enabled) return;
