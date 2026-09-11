@@ -73,10 +73,13 @@ class AdBlock {
     // The short hand-written list Veil has always carried. It is a backstop
     // for a profile with every list turned off, not a list in its own right.
     try {
+      const before = engine.counts.host;
       const builtin = fs.readFileSync(
         path.join(__dirname, '..', '..', 'assets', 'blocklist.txt'), 'utf8');
       engine.addList(builtin);
-      this.builtinCount = engine.counts.host;
+      // What this list added, not what the engine holds - most of its domains
+      // are in the big lists as well, so the difference is the honest number.
+      this.builtinCount = engine.counts.host - before;
     } catch (e) {
       console.error('[adblock] built-in list missing:', e.message);
     }

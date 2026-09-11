@@ -106,7 +106,8 @@
         "libuuid1",
         "libsecret-1-0"
       ],
-      "packageCategory": "net"
+      "packageCategory": "net",
+      "maintainer": "P0ult <P0ult@users.noreply.github.com>"
     }
   },
   "devDependencies": {
