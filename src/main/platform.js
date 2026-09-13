@@ -125,11 +125,52 @@ const VPN_PICKER = MAC
     ? { title: 'Locate the Tunnel VPN program', filters: [{ name: 'Programs', extensions: ['*'] }] }
     : { title: 'Locate TunnelVPN.exe', filters: [{ name: 'Programs', extensions: ['exe'] }] };
 
+/* ------------------------------------------------------- names for the UI
+
+   The settings and password pages describe what holds a secret and what holds
+   a proxy setting, and those are different things on each platform. Saying
+   "your Windows account" to somebody on a Mac is not a cosmetic error: it
+   tells them the wrong thing about where their passwords are kept.          */
+
+/** What the OS keystore is called, in the words the user's own OS uses. */
+const KEYSTORE_NAME = MAC ? 'the macOS Keychain'
+  : LINUX ? 'your system keyring'
+  : 'your Windows account';
+
+/** The same, capitalised for the start of a sentence or a button. */
+const KEYSTORE_SHORT = MAC ? 'Keychain'
+  : LINUX ? 'system keyring'
+  : 'Windows account';
+
+/** Where the machine's own proxy settings live, by name. */
+const SYSTEM_PROXY_NAME = MAC ? 'the network settings in System Settings'
+  : LINUX ? 'the desktop network settings'
+  : "Windows' proxy settings";
+
+/** Every platform fact a renderer is allowed to ask for, in one object. */
+function describe() {
+  return {
+    os: MAC ? 'mac' : LINUX ? 'linux' : 'windows',
+    name: MAC ? 'macOS' : LINUX ? 'Linux' : 'Windows',
+    keystore: KEYSTORE_NAME,
+    keystoreShort: KEYSTORE_SHORT,
+    systemProxy: SYSTEM_PROXY_NAME,
+    // Tunnel VPN is published for Windows and macOS only. On Linux the pages
+    // that offer it say so rather than showing a picker for a file that was
+    // never built.
+    hasVpnApp: !LINUX,
+    // electron-updater cannot replace a .deb, and a .deb is what Ubuntu should
+    // be installing, so Linux is told to fetch the new version itself.
+    canSelfUpdate: !LINUX
+  };
+}
+
 /** The window icon. Windows takes the .ico; everything else wants a bitmap. */
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', WINDOWS ? 'icon.ico' : 'icon.png');
 
 module.exports = {
   MAC, WINDOWS, LINUX, UNIX, APP_ICON,
+  KEYSTORE_NAME, KEYSTORE_SHORT, SYSTEM_PROXY_NAME, describe,
   firstExisting,
   VPN_CTRL_DIR, vpnCandidates, VPN_PROCESS_MARKS, PROCESS_LIST_CMD, VPN_PICKER,
   TOR_BUNDLE_PLATFORM, TOR_BINARY,

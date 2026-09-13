@@ -143,6 +143,24 @@ html, body { overflow: hidden; background: transparent; height: 100%; }
   text-overflow: ellipsis;
 }
 
+/* The sound button. Unlike close, it does not wait for a hover: a tab making
+   a noise you did not ask for is exactly when you need to find it. */
+.sound {
+  width: 18px; height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--text-3);
+  cursor: pointer;
+  flex: none;
+}
+.sound .icon { width: 12px; height: 12px; }
+.sound:hover { background: var(--surface-3); color: var(--text); }
+.sound[data-muted="1"] { opacity: 0.55; }
+#rail[data-collapsed="1"] .sound { display: none; }
+
 .close {
   width: 18px; height: 18px;
   display: grid;

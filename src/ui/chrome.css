@@ -105,6 +105,22 @@ html, body { overflow: hidden; background: transparent; }
   text-overflow: ellipsis;
 }
 
+/* The sound button, which shares the close button's shape and only appears
+   when a tab is actually making a noise or has been silenced. */
+.tab .sound {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--text-3);
+  opacity: 0.85;
+}
+.tab .sound:hover { background: var(--surface-3); color: var(--text); opacity: 1; }
+.tab .sound[data-muted="1"] { color: var(--text-3); opacity: 0.6; }
+.tab .sound .icon { width: 13px; height: 13px; }
+
 .tab .close {
   width: 18px; height: 18px;
   flex: none;

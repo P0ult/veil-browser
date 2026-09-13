@@ -163,7 +163,8 @@ body { display: flex; flex-direction: column; }
 .stats .pill[data-state="connected"] .dot { background: var(--ok); }
 .stats .pill[data-state="connecting"] .dot { background: var(--warn); }
 .stats .pill[data-state="running"] .dot { background: var(--warn); }
-.stats a { color: var(--text-3); }
+.stats a { color: var(--text-3); cursor: pointer; }
+.stats a b { color: var(--text-2); }
 .stats a:hover { color: var(--accent); }
 
 /* ---------------------------------------------------------------- results */

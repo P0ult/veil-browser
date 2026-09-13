@@ -393,6 +393,14 @@ class FilterEngine {
     // The hostname set: every plain ||domain^ rule and every hosts-file line.
     this.blockedHosts = new Set();
     this.hostExceptions = new Set();
+    /* What kind of list each blocked host came from - but only where it is not
+       the common case. Advert lists are most of every profile, and a hosts
+       list can carry 180,000 domains, so naming each one 'advert' would cost
+       megabytes to record what can be assumed. Only tracking lists and the
+       user's own rules are written down; anything else blocked by a hostname
+       is an advert list by elimination. */
+    this.hostKind = new Map();
+    this.kind = '';
 
     // Cosmetic filtering.
     this.cosmeticByDomain = new Map();     // domain -> [selector]
@@ -404,14 +412,23 @@ class FilterEngine {
     this.counts = { network: 0, host: 0, cosmetic: 0, generic: 0, scriptlet: 0, skipped: 0 };
   }
 
-  /** Add one list, in Adblock, hosts, or plain-domain format. */
-  addList(text) {
+  /**
+   * Add one list, in Adblock, hosts, or plain-domain format.
+   *
+   * `kind` says what sort of list this is - 'advert', 'tracker' or 'custom'.
+   * Every rule the list contributes is stamped with it, so that when one of
+   * them stops a request the statistics page can say which kind of list it
+   * came from rather than guessing from the domain name.
+   */
+  addList(text, kind) {
+    this.kind = kind || '';
     for (const raw of String(text).split('\n')) {
       const line = raw.trim();
       if (!line) continue;
       if (line[0] === '!' || line[0] === '[' || line[0] === '#' && line[1] === ' ') continue;
       this.addLine(line);
     }
+    this.kind = '';
   }
 
   addLine(line) {
@@ -446,13 +463,18 @@ class FilterEngine {
     // and a Set lookup beats any amount of pattern matching.
     if (rule.host && !rule.types && !rule.notTypes && rule.thirdParty === null &&
         !rule.domains && !rule.notDomains) {
-      if (rule.exception) this.hostExceptions.add(rule.host);
-      else this.blockedHosts.add(rule.host);
+      if (rule.exception) {
+        this.hostExceptions.add(rule.host);
+      } else {
+        this.blockedHosts.add(rule.host);
+        this.noteKind(rule.host);
+      }
       this.counts.host++;
       return;
     }
 
     if (rule.host && !rule.re) rule.re = patternToRe('||' + rule.host + '^');
+    if (this.kind && this.kind !== 'advert') rule.kind = this.kind;
 
     const byToken = rule.exception ? this.allowByToken : this.blockByToken;
     const noToken = rule.exception ? this.allowNoToken : this.blockNoToken;
@@ -466,11 +488,18 @@ class FilterEngine {
     this.counts.network++;
   }
 
+  /** Record the list kind for a blocked host, where it is worth recording. */
+  noteKind(host) {
+    if (this.kind === '' || this.kind === 'advert') return;
+    if (!this.hostKind.has(host)) this.hostKind.set(host, this.kind);
+  }
+
   addHost(host) {
     const h = String(host).toLowerCase().replace(/^www\./, '');
     if (!h || !h.includes('.') || /[^a-z0-9.\-_]/.test(h)) return;
     if (h === 'localhost' || h === 'localhost.localdomain' || h === 'local') return;
     this.blockedHosts.add(h);
+    this.noteKind(h);
     this.counts.host++;
   }
 
@@ -637,10 +666,26 @@ class FilterEngine {
 
     if (this.hasHostException(ctx.host)) return 'allow';
     if (this.matchIn(this.allowByToken, this.allowNoToken, probe)) return 'allow';
+
+    // What matched, for whoever asks next. Read immediately or not at all:
+    // the next decision overwrites it.
+    this.lastKind = hostBlocked
+      ? (this.kindOfHost(ctx.host) || 'advert')
+      : (blocked.kind || 'advert');
     return 'block';
   }
 
   hasBlockedHost(hostname) { return setHasDomainOrParent(this.blockedHosts, hostname); }
+
+  /** Which kind of list put this hostname on the block set. */
+  kindOfHost(hostname) {
+    const h = String(hostname || '').toLowerCase().replace(/^www\./, '');
+    for (const domain of parentsOf(h)) {
+      const kind = this.hostKind.get(domain);
+      if (kind) return kind;
+    }
+    return '';
+  }
   hasHostException(hostname) { return setHasDomainOrParent(this.hostExceptions, hostname); }
 
   /* ------------------------------------------------- cosmetic, for a page */

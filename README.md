@@ -35,6 +35,8 @@ about a query touches disk.
 | **Ad and tracker blocking** | A full Adblock Plus / uBlock Origin filter engine, matching in `webRequest` before a packet leaves the machine: network patterns with resource types, first- and third-party rules, per-site rules and exceptions. EasyList, EasyPrivacy and uBlock Origin's own lists ship inside the app - about 116,000 rules - and refresh from their sources. |
 | **Adverts inside the page's own data** | Some adverts cannot be blocked by refusing a request - YouTube describes its adverts inside the same JSON the player needs to play the video. uBlock Origin's scriptlets handle these, and are kept current by its maintainers rather than by this project. |
 | **YouTube adverts** | Yes. uBlock Origin runs inside Veil, patched to work under Electron, and its scriptlets take the advert data out of the player before it is read - on a watch page opened directly and on a video clicked through to inside the site. Settings -> Privacy -> Use uBlock Origin. |
+| **Blocking statistics** | `veil://stats` keeps a running count of what has been refused: the domains, how often, and whether an advert list or a tracking list named them, with a chart of the last thirty days. It is deliberately not history — the domain that was turned away is recorded, never the page you were reading when it happened. |
+| **Reader view** | Strips a page to the thing you came to read. Runs in the preload, so no site's Content-Security-Policy can refuse it, and nothing is fetched or sent anywhere. |
 | **No empty ad boxes** | Cosmetic filtering from the same lists collapses the containers a blocked ad leaves behind. The page says which class and id names it contains and is sent only the rules that could match one, so it carries forty selectors rather than forty thousand. |
 | **Third-party cookies** | Stripped from cross-site requests in both directions — `Cookie` going out, `Set-Cookie` coming back. |
 | **Referrers** | Cross-site requests send the bare origin, never the page you came from. |
@@ -129,9 +131,10 @@ the main process so the watch page could be rewritten before the player read
 it. It worked, and it was fast — median page load fell on every site measured —
 but `accounts.google.com` refuses any request re-issued that way with
 `401 — malformed`, whatever is done to the headers. It also never reached a
-video clicked through to inside the site. `src/main/intercept.js` remains, off,
-behind `privacy.rewriteYouTube`; uBlock does the same job without breaking
-sign-in.
+video clicked through to inside the site. It has been deleted, along with its
+setting: uBlock does the same job without breaking sign-in, and leaving four
+hundred lines of it in the tree behind a switch nobody should turn on was not
+worth the surface.
 
 ### Alongside it
 
@@ -143,6 +146,60 @@ broken.
 
 Settings → Privacy → **Use uBlock Origin**. It needs *Stay signed in*: an
 extension cannot load into a profile that is never written to disk.
+
+## Blocking, counted
+
+`veil://stats` answers a question a shield icon with a number on it cannot:
+what is actually being blocked, and by what.
+
+It keeps, across restarts, the domain that was refused, how many times, and
+which kind of list named it. `src/main/stats.js` writes it to `block-stats.json`
+in the profile, debounced to one write every twenty seconds, and trims itself to
+sixty days and three thousand domains.
+
+**What it deliberately does not keep is the page you were on.** That line is the
+whole design. `doubleclick.net, 412 times, an advert list` is a fact about
+advertising. `doubleclick.net, on the page you read at 11:04` is browsing
+history wearing a different hat, and this browser does not have history.
+
+The advert-or-tracker label is not a guess about the domain — nothing can tell
+those apart by looking at a name. The lists are already split along that line,
+and a rule knows which list it came from, so the label says exactly what it
+knows: which kind of list stopped this request. Only the uncommon answers are
+stored, because a hosts list can carry 180,000 domains and writing "advert"
+beside each of them would cost megabytes to record what can be assumed.
+
+Turn the counting off in Settings → Privacy, or forget the figures from the
+page itself.
+
+## Reading
+
+**Reader view** (`Ctrl+Alt+R`, or the ⋮ menu) strips a page to its article.
+
+It runs in the tab's preload rather than in the page, which is what makes it
+work everywhere: the preload's DOM access is the page's DOM, but its code is not
+subject to the page's Content-Security-Policy, so no site can refuse it. Nothing
+is fetched and nothing is sent anywhere — the article is already in the
+document; reader view only decides which part of it is the article.
+
+The extraction is the old heuristic, and it is boring because it works: score
+every block by how much of its text sits in paragraphs rather than in links, and
+take the winner. A page with no article in it says so rather than emptying
+itself. The original page is hidden, not destroyed, so its own scripts keep
+running and pressing the key again puts everything back exactly as it was,
+scroll position included.
+
+**PDFs** open in Chromium's own viewer rather than downloading. It is already in
+the binary; nothing is sent anywhere to render one. Settings → Browser.
+
+**Zoom is remembered per site.** Chromium keeps a zoom level per origin, but only
+for as long as the session lives, so a site you always read at 125% was back at
+100% after every restart. It is written down now, and put back when the page
+commits rather than after it has painted at the wrong size.
+
+**A tab making a noise** shows a speaker button, in the tab strip and in the
+vertical rail, and clicking it silences that tab. It appears only when there is
+a sound to stop.
 
 ## The search engine
 
@@ -330,8 +387,14 @@ plaintext.
    is the most dangerous program on the machine, so "no update server" must not
    become "no idea I am out of date".
 
+It cannot always do the first of those, and says which rather than failing
+late — see [Windows, macOS and Linux](#windows-macos-and-linux). Short version:
+Windows yes, macOS only when the build is signed, Linux never.
+
 The build date is stamped into `assets/build-info.json` by
-`scripts/stamp-build.js`, which `npm run dist` runs first. Timestamps before
+`scripts/stamp-build.js`, which `npm run dist` runs first. The same stamp
+records whether the build was signed, which is what the updater reads to decide
+whether replacing itself can work at all. Timestamps before
 2020 are treated as unknown rather than believed — Electron's own zip carries
 1980 dates.
 
@@ -416,11 +479,15 @@ switching the profile between in-memory and on-disk.
 | `Ctrl Tab` / `Ctrl Shift Tab` | Cycle tabs |
 | `Ctrl 1…8`, `Ctrl 9` | Jump to tab · last tab |
 | `Ctrl R` / `Ctrl Shift R` | Reload · reload ignoring cache |
-| `Ctrl +` / `Ctrl -` / `Ctrl 0` | Zoom |
+| `Ctrl +` / `Ctrl -` / `Ctrl 0` | Zoom, remembered per site |
+| `Ctrl Alt R` | Reader view |
 | `Ctrl ,` | Settings |
 | `Ctrl Shift P` | Passwords |
 | `Ctrl Shift C` | Copy the current address |
 | `Ctrl Shift I` | Developer tools |
+
+On macOS every `Ctrl` above is `Cmd`: the shortcuts are declared once, as
+`CmdOrCtrl`, and Electron binds and draws the right key on each platform.
 
 Copy and paste are ordinary: `Ctrl C` / `Ctrl V` / `Ctrl X` / `Ctrl A` work in
 pages and in Veil's own fields, `Ctrl Shift V` pastes as plain text, and the
@@ -577,6 +644,39 @@ covered in [RELEASING.md](RELEASING.md):
 `Veil` appears in `package.json` (`productName`, `build.appId`), in the
 `veil://` scheme registered in `src/main/protocol.js`, and as display text in
 the UI. The scheme name is the only one that has to change everywhere at once.
+
+## Windows, macOS and Linux
+
+Everything that differs between the three lives in `src/main/platform.js`, so
+that adding a platform means editing one file and so that it is possible to read,
+in one place, exactly what Veil assumes about the machine it is on. The pages ask
+it for the words they use, rather than naming Windows and hoping: telling
+somebody on a Mac that their passwords are kept by "your Windows account" is not
+a cosmetic error, it tells them the wrong thing about where their passwords are.
+
+Where something genuinely is not available, Veil says so instead of offering a
+button that cannot work:
+
+| | |
+|---|---|
+| **Tunnel VPN** (the separate whole-machine app) | Windows and macOS. On Linux the section is not shown, and a profile carried over from another machine is moved off that tunnel provider rather than left retrying one that can never start. |
+| **Updating itself** | Windows, and macOS only when the build is signed — macOS will not let an unsigned application replace itself, so electron-updater would download the whole thing and then fail the signature check. The build stamp records whether it was signed and the updater reads it, so this turns itself on the day the builds are signed. Linux never: electron-updater can replace an AppImage and nothing else, and a `.deb` is what should be installed on Ubuntu. |
+| **The keystore** | All three, under different names — DPAPI, Keychain, the system keyring. On a Linux box with no keyring running there is no keystore at all, and the vault needs a master password. |
+| **The in-browser tunnel** | All three. It needs no driver and no root, which is the reason it is the one that matters on Linux. |
+
+### The macOS "damaged" message
+
+macOS refuses to open a downloaded application that is not signed and notarised,
+and says it is *damaged* rather than *unsigned*, which is alarming and wrong. The
+build is fine; Gatekeeper has quarantined it. Either right-click the app and
+choose Open, or:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Veil.app
+```
+
+The real fix is an Apple Developer ID, which is also what turns updating itself
+back on.
 
 ## Third-party software
 

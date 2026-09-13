@@ -1000,6 +1000,270 @@ if (!isInternal && isWeb) {
   });
 }
 
+/* ---------------------------------------------------------------- reader view
+
+   Strip a page to the thing you came to read.
+
+   This runs in the preload rather than in the page, which is what makes it
+   work everywhere: the preload's DOM access is the page's DOM, but its code is
+   not subject to the page's Content-Security-Policy, so there is no site that
+   can refuse it. Nothing is fetched and nothing is sent anywhere - the article
+   is already in the document; reader view only decides which part of it is the
+   article and throws the rest away.
+
+   The extraction is the old, boring heuristic, and it is boring because it
+   works: score every candidate block by how much of it is text sitting in
+   paragraphs rather than in links and furniture, and take the winner. A real
+   Readability port would score a little better on a few sites and costs 100KB;
+   this is a few dozen lines and no dependency.                              */
+
+const READER = {
+  on: false,
+  saved: null
+};
+
+/** Words, roughly, without counting punctuation as one. */
+function wordsIn(text) {
+  const t = String(text || '').trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
+/**
+ * How much of this block reads like prose?
+ *
+ * Text inside links is discounted heavily: a navigation column is mostly
+ * words, and mostly links, and that is exactly what distinguishes it from an
+ * article. Paragraph count matters too - one enormous div of text is more
+ * often a comment thread than a piece of writing.
+ */
+function scoreBlock(el) {
+  const text = el.innerText || '';
+  const total = wordsIn(text);
+  if (total < 80) return 0;
+
+  let linked = 0;
+  for (const a of el.querySelectorAll('a')) linked += wordsIn(a.innerText);
+
+  const paragraphs = el.querySelectorAll('p').length;
+  if (paragraphs === 0) return 0;
+
+  const linkRatio = linked / Math.max(1, total);
+  if (linkRatio > 0.5) return 0;
+
+  let score = total * (1 - linkRatio);
+
+  // Sites label the thing honestly more often than not.
+  const tag = el.tagName.toLowerCase();
+  if (tag === 'article') score *= 1.6;
+  else if (tag === 'main') score *= 1.3;
+  const marker = ((el.className || '') + ' ' + (el.id || '')).toLowerCase();
+  if (/(^|[\s_-])(article|post|story|content|entry|body)([\s_-]|$)/.test(marker)) score *= 1.25;
+  if (/(comment|sidebar|footer|header|nav|promo|related|share|advert)/.test(marker)) score *= 0.3;
+
+  return score;
+}
+
+/** The element most likely to be the article, or null if the page is not one. */
+function findArticle() {
+  const candidates = document.querySelectorAll('article, main, div, section, td');
+  let best = null, bestScore = 0;
+
+  for (const el of candidates) {
+    // A block that contains another candidate scores through its child anyway;
+    // skipping the deep ones keeps this from walking a whole DOM twice over.
+    if (el.querySelector('article, main')) continue;
+    const score = scoreBlock(el);
+    if (score > bestScore) { bestScore = score; best = el; }
+  }
+
+  return bestScore >= 120 ? best : null;
+}
+
+/** Everything worth keeping from one node, as plain, safe elements. */
+function cleanInto(source, target) {
+  const KEEP = new Set([
+    'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'LI', 'BLOCKQUOTE',
+    'PRE', 'CODE', 'FIGURE', 'FIGCAPTION', 'IMG', 'A', 'EM', 'STRONG', 'B', 'I',
+    'BR', 'HR', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'SUP', 'SUB', 'TIME'
+  ]);
+  const DROP = 'script, style, noscript, iframe, form, button, input, select, textarea, svg, video, audio, aside, nav';
+
+  const walk = (node, into) => {
+    for (const child of node.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        into.appendChild(document.createTextNode(child.nodeValue));
+        continue;
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) continue;
+      if (child.matches && child.matches(DROP)) continue;
+
+      const tag = child.tagName;
+      if (!KEEP.has(tag)) {
+        // Not a tag worth keeping, but its children might be.
+        walk(child, into);
+        continue;
+      }
+
+      const copy = document.createElement(tag);
+      if (tag === 'IMG') {
+        const src = child.currentSrc || child.src || '';
+        if (!src || child.naturalWidth && child.naturalWidth < 160) continue;
+        copy.src = src;
+        if (child.alt) copy.alt = child.alt;
+        into.appendChild(copy);
+        continue;
+      }
+      if (tag === 'A') {
+        const href = child.getAttribute('href') || '';
+        // Only ordinary links survive, resolved against the page so they still
+        // go where they said they would.
+        if (/^(https?:|#|\/|\.)/i.test(href)) {
+          try { copy.href = new URL(href, location.href).href; } catch {}
+        }
+      }
+      walk(child, copy);
+      into.appendChild(copy);
+    }
+  };
+
+  walk(source, target);
+}
+
+const READER_CSS = `
+  :root { color-scheme: dark; }
+  html, body { margin: 0 !important; padding: 0 !important; background: #14181d !important; }
+  #veil-reader {
+    max-width: 42rem; margin: 0 auto; padding: 64px 24px 140px;
+    font: 19px/1.72 ui-serif, Georgia, 'Times New Roman', serif;
+    color: #e6ebf2; background: #14181d;
+  }
+  #veil-reader .veil-reader-head {
+    border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 20px; margin-bottom: 30px;
+  }
+  #veil-reader h1 { font-size: 33px; line-height: 1.22; margin: 0 0 12px; letter-spacing: -0.4px; }
+  #veil-reader .veil-reader-site {
+    font: 500 12.5px/1.4 ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: 0.5px; text-transform: uppercase; color: #7dd3a0;
+  }
+  #veil-reader h2 { font-size: 24px; line-height: 1.3; margin: 38px 0 12px; }
+  #veil-reader h3 { font-size: 20px; margin: 30px 0 10px; }
+  #veil-reader p { margin: 0 0 1.15em; }
+  #veil-reader a { color: #8ab4f8; text-decoration: underline; text-underline-offset: 2px; }
+  #veil-reader img { max-width: 100%; height: auto; border-radius: 8px; display: block; margin: 26px auto; }
+  #veil-reader figure { margin: 26px 0; }
+  #veil-reader figcaption,
+  #veil-reader .veil-reader-foot {
+    font: 13px/1.5 ui-sans-serif, system-ui, sans-serif; color: #8c98a6;
+  }
+  #veil-reader .veil-reader-foot {
+    margin-top: 56px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.12);
+  }
+  #veil-reader blockquote {
+    margin: 24px 0; padding: 2px 0 2px 20px; border-left: 3px solid #7dd3a0; color: #c3ccd8;
+  }
+  #veil-reader pre {
+    font: 13.5px/1.55 ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,0.055);
+    padding: 14px 16px; border-radius: 8px; overflow-x: auto; color: #dbe3ec;
+  }
+  #veil-reader code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em; }
+  #veil-reader pre code { font-size: inherit; }
+  #veil-reader table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  #veil-reader th, #veil-reader td {
+    border: 1px solid rgba(255,255,255,0.12); padding: 7px 10px; text-align: left;
+  }
+  #veil-reader ul, #veil-reader ol { padding-left: 1.4em; margin: 0 0 1.15em; }
+  #veil-reader li { margin-bottom: 0.4em; }
+`;
+
+/** Turn it on. Returns why not, if not. */
+function readerOn() {
+  const article = findArticle();
+  if (!article) return 'no article';
+
+  const title =
+    (document.querySelector('h1') && document.querySelector('h1').innerText.trim()) ||
+    document.title || '';
+
+  const view = document.createElement('div');
+  view.id = 'veil-reader';
+
+  const head = document.createElement('div');
+  head.className = 'veil-reader-head';
+  const site = document.createElement('div');
+  site.className = 'veil-reader-site';
+  site.textContent = location.hostname.replace(/^www\./, '');
+  const h1 = document.createElement('h1');
+  h1.textContent = title;
+  head.append(site, h1);
+
+  const body = document.createElement('div');
+  cleanInto(article, body);
+
+  const foot = document.createElement('div');
+  foot.className = 'veil-reader-foot';
+  foot.textContent = 'Reader view. Press the same key again to go back to the page.';
+
+  view.append(head, body, foot);
+
+  const style = document.createElement('style');
+  style.id = 'veil-reader-style';
+  style.textContent = READER_CSS;
+
+  // The page is kept, not rebuilt: its own scripts may still be running, and
+  // tearing the document out from under them is how a site ends up throwing
+  // every second afterwards. Hiding it costs nothing and is reversible.
+  READER.saved = {
+    children: Array.from(document.body.children),
+    display: new Map(),
+    scroll: window.scrollY,
+    overflow: document.documentElement.style.overflow
+  };
+  for (const el of READER.saved.children) {
+    READER.saved.display.set(el, el.style.display);
+    el.style.display = 'none';
+  }
+
+  document.documentElement.appendChild(style);
+  document.body.appendChild(view);
+  window.scrollTo(0, 0);
+  READER.on = true;
+  return 'on';
+}
+
+/** Put it back exactly as it was. */
+function readerOff() {
+  const saved = READER.saved;
+  const view = document.getElementById('veil-reader');
+  const style = document.getElementById('veil-reader-style');
+  if (view) view.remove();
+  if (style) style.remove();
+  if (saved) {
+    for (const el of saved.children) {
+      const was = saved.display.get(el);
+      if (was === undefined || was === '') el.style.removeProperty('display');
+      else el.style.display = was;
+    }
+    window.scrollTo(0, saved.scroll || 0);
+  }
+  READER.saved = null;
+  READER.on = false;
+  return 'off';
+}
+
+if (isWeb) {
+  ipcRenderer.on('veil:reader-toggle', () => {
+    let result;
+    try {
+      result = READER.on ? readerOff() : readerOn();
+    } catch (e) {
+      // Leave the page as it was found rather than half-stripped.
+      try { readerOff(); } catch {}
+      result = 'failed';
+    }
+    ipcRenderer.send('reader:result', result);
+  });
+}
+
 /* ------------------------------------------------------------- internal API */
 
 if (isInternal) {
@@ -1033,6 +1297,11 @@ if (isInternal) {
     adblock: {
       stats: () => ipcRenderer.invoke('adblock:stats'),
       update: () => ipcRenderer.invoke('adblock:update')
+    },
+
+    stats: {
+      summary: () => ipcRenderer.invoke('stats:summary'),
+      clear: () => ipcRenderer.invoke('stats:clear')
     },
 
     tunnel: {

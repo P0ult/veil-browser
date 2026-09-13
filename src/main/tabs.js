@@ -41,6 +41,52 @@ class TabManager {
   active() { return this.tabs.get(this.activeId); }
   activeContents() { const t = this.active(); return t && t.view.webContents; }
 
+  /** The site a URL belongs to, as zoom and mute are both remembered by site. */
+  static siteOf(url) {
+    try {
+      const h = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+      return h || '';
+    } catch { return ''; }
+  }
+
+  /** Put back whatever zoom this site was last read at. */
+  applyZoom(wc) {
+    if (!wc || wc.isDestroyed()) return;
+    const site = TabManager.siteOf(wc.getURL());
+    const saved = site ? this.settings.get('browser.zoomSites', {})[site] : null;
+    const factor = Number(saved) || Number(this.settings.get('browser.defaultZoom', 1)) || 1;
+    try { wc.setZoomFactor(factor); } catch {}
+  }
+
+  /**
+   * Remember the zoom for the site in this tab.
+   *
+   * A factor equal to the default is removed rather than written, so the file
+   * does not fill up with every site you ever pressed Ctrl+0 on.
+   */
+  rememberZoom(wc, factor) {
+    const site = TabManager.siteOf(wc.getURL());
+    if (!site) return;
+    const sites = Object.assign({}, this.settings.get('browser.zoomSites', {}));
+    const base = Number(this.settings.get('browser.defaultZoom', 1)) || 1;
+    if (Math.abs(factor - base) < 0.01) delete sites[site];
+    else sites[site] = factor;
+    // set, not update: update merges, so a site removed here would come back.
+    this.settings.set('browser.zoomSites', sites);
+  }
+
+  /** Silence a tab, or let it speak again. */
+  toggleMute(id) {
+    const tab = this.tabs.get(id != null ? id : this.activeId);
+    if (!tab) return false;
+    const wc = tab.view.webContents;
+    if (wc.isDestroyed()) return false;
+    tab.muted = !wc.isAudioMuted();
+    wc.setAudioMuted(tab.muted);
+    this.emit();
+    return tab.muted;
+  }
+
   /** Top-level URL for a given webContents id — used by the privacy layer. */
   topUrlFor(wcId) {
     for (const t of this.tabs.values()) {
@@ -112,7 +158,13 @@ class TabManager {
         webviewTag: false,
         navigateOnDragDrop: false,
         autoplayPolicy: 'document-user-activation-required',
-        backgroundThrottling: true
+        backgroundThrottling: true,
+        /* Chromium's own PDF viewer. `plugins` reads like a hole and is not
+           one any more: NPAPI and PPAPI are long gone from Chromium, and the
+           flag now gates the built-in PDF reader and nothing else. Without it
+           a PDF link downloads instead of opening, which is the one thing
+           people expect a browser to do with a PDF. */
+        plugins: this.settings.get('browser.openPdf', true) !== false
       }
     });
 
@@ -130,7 +182,9 @@ class TabManager {
       canGoBack: false,
       canGoForward: false,
       favicon: '',
-      failed: null
+      failed: null,
+      muted: false,
+      audible: false
     };
 
     this.tabs.set(id, tab);
@@ -181,6 +235,33 @@ class TabManager {
       // the new one's title for however long the next page takes to load.
       if (tab.favicon) { tab.favicon = ''; this.emit(); }
     });
+
+    /* Something started making noise, or stopped. Watched so the tab can say
+       so, and so the mute button has a reason to appear. */
+    wc.on('media-started-playing', () => {
+      const audible = wc.isCurrentlyAudible();
+      if (audible === tab.audible) return;
+      tab.audible = audible;
+      this.emit();
+    });
+    wc.on('media-paused', () => {
+      // isCurrentlyAudible is still true for a moment after the pause.
+      setTimeout(() => {
+        if (wc.isDestroyed()) return;
+        const audible = wc.isCurrentlyAudible();
+        if (audible === tab.audible) return;
+        tab.audible = audible;
+        this.emit();
+      }, 250);
+    });
+
+    /* Zoom, put back for the site you are returning to.
+       Chromium keeps a zoom level per origin but only for as long as the
+       session lives, so a site you always read at 125% is back at 100% after
+       a restart. The factor is applied on commit rather than on load finishing,
+       so the page is never painted at the wrong size first. */
+    wc.on('did-navigate', () => this.applyZoom(wc));
+    wc.on('did-navigate-in-page', (e, url, isMain) => { if (isMain) this.applyZoom(wc); });
 
     wc.on('page-favicon-updated', (e, icons) => {
       const next = (Array.isArray(icons) ? icons : []).find(u => /^https?:/i.test(u)) || '';
@@ -311,7 +392,9 @@ class TabManager {
           canGoBack: t.canGoBack,
           canGoForward: t.canGoForward,
           blocked: this.blockedCount(t.view.webContents.id),
-          zoom: Math.round(t.view.webContents.getZoomFactor() * 100)
+          zoom: Math.round(t.view.webContents.getZoomFactor() * 100),
+          muted: t.muted,
+          audible: t.audible
         };
       }).filter(Boolean)
     };

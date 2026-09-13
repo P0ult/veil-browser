@@ -1,6 +1,38 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
+
+/* The words for this machine. Filled in from the main process as the page
+   loads; the defaults are deliberately vague rather than wrong. */
+const platformWords = {
+  os: 'windows',
+  keystore: 'your account keystore',
+  systemProxy: 'the machine\u2019s proxy settings',
+  hasVpnApp: true,
+  canSelfUpdate: true
+};
+
+async function applyPlatformWords() {
+  try {
+    const info = await veil.appInfo();
+    const p = info && info.platform;
+    if (!p) return;
+    Object.assign(platformWords, p);
+    document.documentElement.dataset.os = p.os;
+    for (const el of document.querySelectorAll('[data-system-proxy]')) el.textContent = p.systemProxy;
+    for (const el of document.querySelectorAll('[data-keystore]')) el.textContent = p.keystore;
+    for (const el of document.querySelectorAll('[data-keystore-short]')) el.textContent = p.keystoreShort;
+    // Sections describing software that is not published for this platform
+    // are hidden rather than left offering a button that cannot work.
+    if (!p.hasVpnApp) {
+      for (const el of document.querySelectorAll('[data-needs="vpn-app"]')) el.hidden = true;
+      for (const el of document.querySelectorAll('[data-needs="no-vpn-app"]')) el.hidden = false;
+      // "My VPN - whole machine" is that same application, so the tunnel
+      // cannot be pointed at it either.
+      for (const el of document.querySelectorAll('option[value="system"]')) el.remove();
+    }
+  } catch {}
+}
 let settings = null;
 
 /* ------------------------------------------------------------ path helpers */
@@ -347,8 +379,8 @@ function renderTunnel(t) {
   $('tunnel-toggle').textContent = (t.state === 'on' || t.state === 'bootstrapping') ? 'Turn off' : 'Turn on';
 
   $('cred-state').textContent = t.hasCredentials
-    ? 'Saved. Stored with your Windows account, never in the settings file.'
-    : 'Stored with your Windows account, never in the settings file. Most VPNs need service credentials, not your account login.';
+    ? 'Saved. Stored with ' + platformWords.keystore + ', never in the settings file.'
+    : 'Stored with ' + platformWords.keystore + ', never in the settings file. Most VPNs need service credentials, not your account login.';
   if (t.exit) {
     $('exit-info').textContent = t.exit.ip + (t.exit.loc ? '  ·  ' + t.exit.loc : '');
   }
@@ -589,6 +621,9 @@ veil.onUpdate(renderUpdate);
 
 veil.getSettings().then(async (s) => {
   settings = s;
+  // Before anything is drawn: sections for software this platform does not
+  // have should never appear, not appear and then vanish.
+  await applyPlatformWords();
   bindAll();
   hydrate(false);
   renderAll();

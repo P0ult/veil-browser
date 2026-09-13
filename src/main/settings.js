@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { app } = require('electron');
-const { firstExisting, vpnCandidates } = require('./platform');
+const { firstExisting, vpnCandidates, LINUX } = require('./platform');
 
 // Tunnel VPN ships for both Windows and macOS and lands in different places on
 // each. Nothing is hardcoded to one machine: the browser takes the first of
@@ -14,7 +14,7 @@ function findVpn() {
 }
 
 const DEFAULTS = {
-  version: 8,
+  version: 9,
   appearance: {
     accent: '#7dd3a0',
     bgType: 'gradient',            // solid | gradient | image
@@ -77,17 +77,10 @@ const DEFAULTS = {
     retention: 'keep',
     blockAds: true,
     cosmeticFiltering: true,
-    // Veil answers https requests itself so it can rewrite the YouTube watch
-    // page before the player reads its advert list out of it.
-    //
-    // Off, and off for a measured reason: Google's account endpoints refuse a
-    // request that has been re-issued this way. accounts.google.com answers
-    // 401 "the server cannot process the request because it is malformed"
-    // whatever is done to the headers - copying the cookie, dropping it,
-    // omitting credentials, or passing the request through entirely untouched.
-    // It is the re-issuing itself that they reject, so there is nothing to
-    // tune. Signing in to Google matters more than this does.
-    rewriteYouTube: false,
+    // Count what gets blocked, and keep the counts across restarts. What is
+    // kept is the domain that was refused and how often - never the page you
+    // were on when it happened. See ./stats for why that line is drawn there.
+    blockStats: true,
     blockThirdPartyCookies: true,
     trimReferrer: true,
     httpsOnly: true,
@@ -182,6 +175,12 @@ const DEFAULTS = {
     homepage: 'veil://home',
     newTabPage: 'veil://home',
     defaultZoom: 1,
+    // Zoom, remembered per site. Chromium keeps zoom per origin for a session
+    // and forgets it on restart; this is what makes it stick.
+    zoomSites: {},
+    // Open a PDF in Veil's own viewer instead of downloading it. The viewer is
+    // Chromium's, which is already in the binary.
+    openPdf: true,
     shortcuts: [
       { title: 'Wikipedia', url: 'https://en.wikipedia.org' },
       { title: 'GitHub', url: 'https://github.com' },
@@ -312,6 +311,24 @@ function migrate(data) {
     changed = true;
   }
 
+  if (data.version === 8) {
+    // privacy.rewriteYouTube is gone with the code behind it. It answered the
+    // https scheme from the main process to rewrite the YouTube watch page,
+    // which worked and broke signing in to Google; uBlock Origin now does the
+    // same job without that cost. Leaving a dead key in the file would keep
+    // showing up in an exported profile as a setting that does nothing.
+    const p = data.privacy || (data.privacy = {});
+    delete p.rewriteYouTube;
+    if (p.blockStats === undefined) p.blockStats = true;
+
+    const b = data.browser || (data.browser = {});
+    if (!isObj(b.zoomSites)) b.zoomSites = {};
+    if (b.openPdf === undefined) b.openPdf = true;
+
+    data.version = 9;
+    changed = true;
+  }
+
   return { data, changed };
 }
 
@@ -335,6 +352,16 @@ class Settings {
       this.data = clone(DEFAULTS);
     }
     if (!this.data.vpn.exePath) this.data.vpn.exePath = findVpn();
+
+    /* "My VPN - whole machine" is the Tunnel VPN application, which is
+       published for Windows and macOS only. A profile carried over from one of
+       those - or one edited by hand - would otherwise sit on Linux with a
+       tunnel provider that can never start, reporting a failure every few
+       seconds. Tor is the default and works everywhere. */
+    if (LINUX && this.data.tunnel.provider === 'system') {
+      this.data.tunnel.provider = 'tor';
+      migrated = true;
+    }
     // Write an upgraded config out straight away, so the file on disk always
     // describes what the running browser is actually doing.
     if (migrated) this.saveNow();
@@ -355,6 +382,29 @@ class Settings {
   /** Deep-merge a patch and notify listeners. */
   update(patch) {
     this.data = merge(this.data, patch);
+    this.save();
+    this.emit();
+    return this.data;
+  }
+
+  /**
+   * Set one value outright, without merging.
+   *
+   * `update` deep-merges, which is right for a patch from the settings page
+   * and wrong for a map you are removing something from: a key deleted from
+   * the copy is still present in the base, so the merge puts it back. Anything
+   * that owns a whole subtree - the per-site zoom list is the one so far -
+   * writes it through here instead.
+   */
+  set(pathStr, value) {
+    const parts = String(pathStr).split('.');
+    const last = parts.pop();
+    let cur = this.data;
+    for (const part of parts) {
+      if (!isObj(cur[part])) cur[part] = {};
+      cur = cur[part];
+    }
+    cur[last] = value;
     this.save();
     this.emit();
     return this.data;

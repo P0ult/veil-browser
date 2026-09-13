@@ -98,6 +98,7 @@ $('dlg-form').addEventListener('submit', async (e) => {
 
 let tunnelState = null;
 let adStats = null;
+let blockTotals = null;   // the figures kept across sessions
 
 const TUNNEL_TEXT = {
   off: 'Direct',
@@ -123,9 +124,18 @@ function renderStats() {
   pill.addEventListener('click', () => veil.tunnel.toggle());
   el.append(pill);
 
-  if (adStats && adStats.blockedTotal > 0) {
-    const t = document.createElement('span');
-    t.innerHTML = '<b>' + adStats.blockedTotal.toLocaleString() + '</b> blocked';
+  // The kept total if there is one, this session's if not. The kept figure is
+  // the more interesting number and the one the page behind this link explains,
+  // so it is the one shown when it exists.
+  const total = (blockTotals && blockTotals.total > 0)
+    ? blockTotals.total
+    : (adStats ? adStats.blockedTotal : 0);
+
+  if (total > 0) {
+    const t = document.createElement('a');
+    t.innerHTML = '<b>' + total.toLocaleString() + '</b> blocked';
+    t.title = 'What Veil has turned away';
+    t.addEventListener('click', () => veil.go('veil://stats/'));
     el.append(t);
   }
 
@@ -171,6 +181,7 @@ veil.onTunnel((s) => { tunnelState = s; renderStats(); });
 
 veil.getSettings().then(applySettings);
 veil.adblock.stats().then((s) => { adStats = s; renderStats(); });
+veil.stats.summary().then((s) => { blockTotals = s; renderStats(); }).catch(() => {});
 veil.tunnel.status().then((s) => { tunnelState = s; renderStats(); });
 
 $('q').focus();

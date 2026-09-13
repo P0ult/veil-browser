@@ -315,7 +315,7 @@
         <div class="ctl"><input type="text" data-bind="tunnel.torPath" style="width:300px" spellcheck="false" placeholder="Optional path"></div>
       </div>
 
-      <div class="row" data-when="tunnel.provider=system">
+      <div class="row" data-when="tunnel.provider=system" data-needs="vpn-app">
         <div class="info"><label>How this works</label><small>Tunnel VPN carries every app on the machine, so Veil does not proxy on top of it — it just tracks the connection and cuts browser traffic if the VPN drops. One administrator prompt when you press Connect.</small></div>
         <div class="ctl"><button class="btn" id="vpn-open-2">Open Tunnel VPN</button></div>
       </div>
@@ -359,7 +359,7 @@
       </div>
 
       <div class="row" data-when="tunnel.provider=socks,http,wstunnel">
-        <div class="info"><label>Sign in</label><small id="cred-state">Stored by your operating system (Windows DPAPI, macOS Keychain), never in the settings file. Most VPNs need service credentials, not your account login.</small></div>
+        <div class="info"><label>Sign in</label><small id="cred-state">Stored by your operating system’s own keystore, never in the settings file. Most VPNs need service credentials, not your account login.</small></div>
         <div class="ctl">
           <input type="text" id="proxy-user" placeholder="Username" style="width:150px" spellcheck="false" autocomplete="off">
           <input type="password" id="proxy-pass" placeholder="Password" style="width:150px" autocomplete="off">
@@ -384,7 +384,7 @@
       </div>
 
       <div class="row">
-        <div class="info"><label>Follow the system proxy</label><small>Off: when the tunnel is not carrying traffic, Veil connects directly instead of using Windows' proxy settings. Windows auto-detection costs about twenty seconds on the first request of every session, and a system proxy can see everything the tunnel is there to hide. Turn this on only if you are behind a proxy you need.</small></div>
+        <div class="info"><label>Follow the system proxy</label><small>Off: when the tunnel is not carrying traffic, Veil connects directly instead of following <span data-system-proxy>the machine’s proxy settings</span>. Automatic proxy detection costs about twenty seconds on the first request of every session, and a system proxy can see everything the tunnel is there to hide. Turn this on only if you are behind a proxy you need.</small></div>
         <div class="ctl"><button class="switch" role="switch" data-bind="tunnel.systemProxy"></button></div>
       </div>
 
@@ -406,8 +406,8 @@
         <div class="ctl"><input type="text" data-bind="dns.servers" style="width:300px" spellcheck="false"></div>
       </div>
 
-      <h2>System VPN</h2>
-      <div class="row">
+      <h2 data-needs="vpn-app">System VPN</h2>
+      <div class="row" data-needs="vpn-app">
         <div class="info"><label>Tunnel VPN</label><small id="vpn-detail">…</small></div>
         <div class="ctl">
           <button class="btn" id="vpn-open">Open</button>
@@ -415,9 +415,17 @@
           <button class="btn" id="vpn-pick">Path…</button>
         </div>
       </div>
-      <div class="row">
+      <div class="row" data-needs="vpn-app">
         <div class="info"><label>Open it when Veil starts</label></div>
         <div class="ctl"><button class="switch" role="switch" data-bind="vpn.autoLaunch"></button></div>
+      </div>
+      <div class="row" data-needs="no-vpn-app" hidden>
+        <div class="info">
+          <label>Not on Linux</label>
+          <small>Tunnel VPN is published for Windows and macOS only, so there is nothing here to point
+            Veil at. The tunnel above is the one that matters on Linux: it runs inside the browser, needs
+            no driver and no root, and carries everything Veil sends.</small>
+        </div>
       </div>
     </section>
 
@@ -443,6 +451,17 @@
       <div class="row">
         <div class="info"><label>Hide blocked ad slots</label></div>
         <div class="ctl"><button class="switch" role="switch" data-bind="privacy.cosmeticFiltering"></button></div>
+      </div>
+
+      <div class="row">
+        <div class="info">
+          <label>Keep blocking statistics</label>
+          <small>Counts what is blocked and keeps the counts across restarts, so
+            <a href="veil://stats/">the blocking page</a> can show them. What is written down is the
+            domain that was refused and how often &mdash; never the page you were reading when it
+            happened, which would be browsing history by another name.</small>
+        </div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.blockStats"></button></div>
       </div>
 
       <div class="row">
@@ -561,6 +580,16 @@
     <!-- ---------------------------------------------------------- browser -->
     <section class="card" id="s-browser">
       <h2>Browser</h2>
+
+      <div class="row">
+        <div class="info">
+          <label>Open PDFs in Veil</label>
+          <small>Off downloads them instead. The viewer is Chromium&rsquo;s own, already in the
+            application &mdash; nothing is sent anywhere to render one. Takes effect for tabs opened
+            after the change.</small>
+        </div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="browser.openPdf"></button></div>
+      </div>
 
       <div class="row">
         <div class="info"><label>Home page</label></div>

@@ -68,7 +68,7 @@ function tabLabel(t) {
 // on every state push (which happens on each blocked request) threw away the
 // element the pointer was already interacting with, so a click on the close
 // button never completed.
-const tabEls = new Map();   // id -> { root, fav, title, close }
+const tabEls = new Map();   // id -> { root, fav, title, sound, close }
 
 function makeTab(id) {
   const root = document.createElement('div');
@@ -80,6 +80,19 @@ function makeTab(id) {
 
   const title = document.createElement('span');
   title.className = 'title';
+
+  // Only present while a tab is making a noise, or has been silenced. A
+  // control that is always there for something that is almost never true is
+  // just clutter in a strip that is already short of room.
+  const sound = document.createElement('span');
+  sound.className = 'sound';
+  sound.hidden = true;
+  sound.innerHTML = '<svg class="icon"><use href="#i-sound"/></svg>';
+  sound.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    veil.action('muteTab', Number(root.dataset.id));
+  });
 
   const close = document.createElement('span');
   close.className = 'close';
@@ -95,14 +108,14 @@ function makeTab(id) {
   });
 
   root.addEventListener('mousedown', (e) => {
-    if (e.target && e.target.closest && e.target.closest('.close')) return;
+    if (e.target && e.target.closest && e.target.closest('.close, .sound')) return;
     const tabId = Number(root.dataset.id);
     if (e.button === 0) veil.tab.select(tabId);
     if (e.button === 1) { e.preventDefault(); veil.tab.close(tabId); }
   });
 
-  root.append(fav, title, close);
-  return { root, fav, title, close };
+  root.append(fav, title, sound, close);
+  return { root, fav, title, sound, close };
 }
 
 
@@ -169,6 +182,16 @@ function updateTab(refs, t, active) {
   }
   if (refs.fav.style.background !== bg) refs.fav.style.background = bg;
   setFavicon(refs, t);
+
+  const noisy = !!(t.audible || t.muted);
+  refs.sound.hidden = !noisy;
+  if (noisy) {
+    refs.sound.dataset.muted = t.muted ? '1' : '0';
+    refs.sound.title = t.muted ? 'Unmute this tab' : 'Mute this tab';
+    const use = refs.sound.firstElementChild.firstElementChild;
+    const want = t.muted ? '#i-muted' : '#i-sound';
+    if (use.getAttribute('href') !== want) use.setAttribute('href', want);
+  }
 }
 
 function renderTabs() {

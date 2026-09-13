@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data:">
+<title>Blocking</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="pages.css">
+<style>
+  .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .figure {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius, 12px);
+    padding: 16px 18px;
+  }
+  .figure .n {
+    font-size: 26px; font-variant-numeric: tabular-nums; letter-spacing: -0.5px;
+    color: var(--text); display: block; margin-bottom: 2px;
+  }
+  .figure .k { color: var(--text-3); font-size: 12px; }
+  .figure[data-kind="advert"] .n { color: var(--accent); }
+  .figure[data-kind="tracker"] .n { color: var(--warn); }
+
+  /* The chart is bars in a flex row: thirty of them, no library. */
+  .chart { display: flex; align-items: flex-end; gap: 3px; height: 110px; margin: 4px 0 2px; }
+  .chart .bar { flex: 1; min-width: 0; background: var(--surface-3); border-radius: 3px 3px 0 0; min-height: 2px; }
+  .chart .bar[data-today="1"] { background: var(--accent); }
+  .chart-axis { display: flex; justify-content: space-between; color: var(--text-3); font-size: 11.5px; margin-top: 6px; }
+
+  table.domains { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.domains th {
+    text-align: left; color: var(--text-3); font-weight: 500; font-size: 11.5px;
+    text-transform: uppercase; letter-spacing: 0.4px; padding: 0 10px 8px 0; border-bottom: 1px solid var(--border);
+  }
+  table.domains td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--border); color: var(--text-2); }
+  table.domains tr:last-child td { border-bottom: 0; }
+  table.domains td.n { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); width: 1%; white-space: nowrap; }
+  table.domains td.domain { word-break: break-all; }
+  .tag {
+    display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px;
+    border: 1px solid var(--border-strong); color: var(--text-3); white-space: nowrap;
+  }
+  .tag[data-kind="advert"] { color: var(--accent); }
+  .tag[data-kind="tracker"] { color: var(--warn); }
+  .tag[data-kind="custom"] { color: var(--text-2); }
+  .more { margin-top: 12px; }
+</style>
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.2-2.9 7.9-7 9.5-4.1-1.6-7-5.3-7-9.5V6z"/></symbol>
+</svg>
+
+<div class="wrap wide" style="padding:56px 0 80px">
+  <div class="mark" style="margin-bottom:10px">
+    <svg><use href="#i-shield"/></svg>
+    <span class="name">Blocking</span>
+  </div>
+  <p class="sub" style="margin-bottom:30px">
+    What Veil has refused on your behalf, kept across restarts. This is not browsing history:
+    it records the domains that were turned away and how often, never the pages you were reading
+    when it happened.
+  </p>
+
+  <div class="figures" id="figures"></div>
+
+  <section class="card">
+    <h2>The last thirty days</h2>
+    <div class="chart" id="chart"></div>
+    <div class="chart-axis"><span id="axis-from"></span><span id="axis-to">today</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Domains turned away</h2>
+    <div id="table-wrap"></div>
+    <div class="more">
+      <button class="btn" id="show-more" hidden>Show more</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <div class="info">
+        <label>Count what is blocked</label>
+        <small>Off stops counting and stops writing the file. What is already recorded stays until you forget it.</small>
+      </div>
+      <div class="ctl"><button class="switch" role="switch" id="toggle"></button></div>
+    </div>
+    <div class="row">
+      <div class="info">
+        <label>Forget these figures</label>
+        <small>Deletes the counts and the file they live in. Nothing about what is blocked from here on changes.</small>
+      </div>
+      <div class="ctl"><button class="btn danger" id="clear">Forget</button></div>
+    </div>
+  </section>
+</div>
+
+<script src="theme.js"></script>
+<script src="stats.js"></script>
+</body>
+</html>

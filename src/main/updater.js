@@ -33,6 +33,44 @@ function plausible(date) {
     ? date : null;
 }
 
+/** The build stamp, or an empty object when running from source. */
+function buildInfo() {
+  try {
+    return JSON.parse(
+      fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'build-info.json'), 'utf8')) || {};
+  } catch { return {}; }
+}
+
+/**
+ * Can this build actually replace itself?
+ *
+ * Three platforms, three different answers, and the honest one is not always
+ * yes:
+ *
+ *   Windows  yes.
+ *   macOS    only if the application is signed. macOS refuses to let an
+ *            unsigned app be replaced in place, so electron-updater downloads
+ *            the whole thing and then fails the signature check - a long wait
+ *            ending in an error nobody can act on. Better to say so first.
+ *   Linux    no. electron-updater can replace an AppImage and nothing else,
+ *            and a .deb is what should be installed on Ubuntu.
+ */
+function selfUpdateSupport() {
+  if (process.platform === 'linux') {
+    return { can: false, why: 'Veil cannot update itself on Linux - download the new version from the releases page' };
+  }
+  if (process.platform === 'darwin') {
+    const signed = (buildInfo().signed || {}).mac;
+    if (!signed) {
+      return {
+        can: false,
+        why: 'This build is not signed, and macOS will not let an unsigned application replace itself - download the new version from the releases page'
+      };
+    }
+  }
+  return { can: true, why: '' };
+}
+
 function buildDate() {
   // Written by scripts/stamp-build.js when the app is packaged.
   try {
@@ -116,7 +154,7 @@ class Updater {
         : age >= STALE_DAYS ? 'stale'
         : 'fresh',
       packaged: app.isPackaged,
-      canSelfUpdate: !!this.load() && app.isPackaged && process.platform !== 'linux'
+      canSelfUpdate: !!this.load() && app.isPackaged && selfUpdateSupport().can
     };
   }
 
@@ -129,13 +167,11 @@ class Updater {
           : 'No release feed is configured for this build');
       return this.status();
     }
-    // Linux has no update feed. electron-updater can only replace an AppImage,
-    // and a .deb install is the one worth recommending on Ubuntu - so rather
-    // than let it fail with something about a missing AppImage path, this says
-    // what is actually true.
-    if (process.platform === 'linux') {
-      this.set('unconfigured',
-        'Veil cannot update itself on Linux - download the new version from the releases page');
+    // Where replacing itself cannot work, say which and why rather than
+    // letting it fail somewhere deep in electron-updater.
+    const support = selfUpdateSupport();
+    if (!support.can) {
+      this.set('unconfigured', support.why);
       return this.status();
     }
     try {

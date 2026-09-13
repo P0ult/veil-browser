@@ -6,13 +6,13 @@ const { app, BaseWindow, WebContentsView, session, ipcMain, Menu, dialog, shell,
 const { Settings, isLightColour, baseBackground } = require('./settings');
 const { AdBlock } = require('./adblock');
 const { UBlockOrigin } = require('./ubo');
+const { BlockStats } = require('./stats');
 const { NetPrivacy } = require('./net-privacy');
-const { Interceptor } = require('./intercept');
 const { SearchEngine } = require('./search');
 const { Vpn } = require('./vpn');
 const { Tunnel } = require('./tunnel');
 const { Vault } = require('./vault');
-const { VPN_PICKER, APP_ICON } = require('./platform');
+const { VPN_PICKER, APP_ICON, describe } = require('./platform');
 const identity = require('./identity');
 const { edgesReached } = require('./hover');
 const { computeLayout } = require('./layout');
@@ -53,7 +53,7 @@ registerScheme();
 const DEV = process.argv.includes('--dev');
 const CHROME_MIN_H = 78;
 
-let settings, adblock, ubo, netPrivacy, interceptor, searchEngine, vpn, tunnel, vault, updater, tabs;
+let settings, adblock, ubo, blockStats, netPrivacy, searchEngine, vpn, tunnel, vault, updater, tabs;
 let win = null, chromeView = null, railView = null, browseSession = null, searchSession = null;
 
 /* The chrome's shape and, when it floats, how much of it is out.
@@ -111,7 +111,6 @@ function broadcast(channel, payload) {
 function broadcastSettings() {
   broadcast('veil:settings', settings.all());
   watchHover(settings.get('appearance.autoHideChrome', false));
-  if (interceptor) interceptor.sync();
 }
 
 /* ------------------------------------------------- reaching for the chrome
@@ -329,6 +328,11 @@ function isInternal(event) {
   try { return (event.sender.getURL() || '').startsWith('veil://'); } catch { return false; }
 }
 
+/** The scheme of a URL, or '' when it is not one. */
+function urlProtocol(url) {
+  try { return new URL(url).protocol; } catch { return ''; }
+}
+
 function guard(fn) {
   return (event, ...args) => {
     if (!isInternal(event)) throw new Error('Veil: this API is only available to internal pages');
@@ -403,8 +407,34 @@ const actions = {
       i = Math.max(0, Math.min(steps.length - 1, (i < 0 ? 4 : i) + dir));
       wc.setZoomFactor(steps[i]);
     }
+    // Remembered for this site, so it is still this size tomorrow.
+    tabs.rememberZoom(wc, wc.getZoomFactor());
     pushState();
   },
+  /** Silence the tab that is making a noise. */
+  muteTab(id) {
+    if (!tabs) return;
+    const muted = tabs.toggleMute(id);
+    sendChrome('veil:toast', { kind: 'info', text: muted ? 'Tab muted' : 'Tab unmuted' });
+  },
+
+  /**
+   * Reader view.
+   *
+   * The work happens in the tab's preload, which has the page's DOM but not
+   * the page's Content-Security-Policy, so no site can refuse it. All this end
+   * does is ask, and say so when the page turns out not to be an article.
+   */
+  reader() {
+    const wc = tabs.activeContents();
+    if (!wc || wc.isDestroyed()) return;
+    if (!/^https?:$/.test(urlProtocol(wc.getURL()))) {
+      sendChrome('veil:toast', { kind: 'info', text: 'Reader view only works on a web page' });
+      return;
+    }
+    wc.send('veil:reader-toggle');
+  },
+
   devtools() {
     const wc = tabs.activeContents();
     if (wc) wc.isDevToolsOpened() ? wc.closeDevTools() : wc.openDevTools({ mode: 'detach' });
@@ -698,7 +728,7 @@ function createWindow() {
     onUpgradeFailed: (url) => netPrivacy.originalFor(url),
     blockedCount: (wcId) => adblock.countFor(wcId),
     resetBlocked: (wcId) => adblock.resetCount(wcId),
-    onNavigate: (wcId, url) => ubo.navigated(wcId, url),
+    onNavigate: (wcId, url) => { if (ubo) ubo.navigated(wcId, url); },
     onFindResult: (r) => sendChrome('veil:find-result', r)
   });
 
@@ -710,7 +740,15 @@ function createWindow() {
 
   win.on('close', () => {
     settings.saveNow();
+    blockStats.saveNow();
+    // Every timer that talks to a view, stopped before the views go. A tab
+    // update or a hover poll landing on a frame that is already being torn
+    // down is harmless but logs an alarming "Render frame was disposed" on the
+    // way out, and shutdown should be quiet.
     clearInterval(vpnTimer);
+    clearTimeout(emitTimer);
+    clearTimeout(slideTimer);
+    if (hoverTimer) { clearInterval(hoverTimer); hoverTimer = null; }
     if (tabs) tabs.destroyAll();
   });
   win.on('closed', () => { win = null; app.quit(); });
@@ -863,7 +901,7 @@ function wireIpc() {
     // uBlock hides the same elements from its own lists, kept more current
     // than Veil's copies. Two stylesheets for one page is work twice over and
     // a way for the two to disagree, so only one of them writes.
-    if (ubo.active) return false;
+    if (ubo && ubo.active) return false;
     return !adblock.isAllowedSite(host);
   }
 
@@ -891,7 +929,7 @@ function wireIpc() {
       if (!settings.get('privacy.blockAds', true)) return;
       // uBlock's scriptlets are the ones its maintainers keep current, and two
       // sets pinning the same property is how both end up broken.
-      if (ubo.active) return;
+      if (ubo && ubo.active) return;
       const host = String(hostname || '').slice(0, 255);
       if (adblock.isAllowedSite(host)) return;
       event.returnValue = adblock.scriptletsFor(host);
@@ -940,6 +978,7 @@ function wireIpc() {
     }
     // An extension is loaded into a session when that session is made, so this
     // one only changes on the way back up.
+    blockStats.setEnabled(settings.get('privacy.blockStats', true));
     if (uboBefore !== settings.get('adblock.ubo', true)) {
       sendChrome('veil:toast', { kind: 'info', text: 'Restart Veil to ' +
         (settings.get('adblock.ubo', true) ? 'start' : 'stop') + ' uBlock Origin' });
@@ -1038,6 +1077,18 @@ function wireIpc() {
 
   ipcMain.handle('adblock:update', guard(() => adblock.updateLists()));
 
+  ipcMain.on('reader:result', (event, result) => {
+    if (!tabForSender(event.sender)) return;
+    if (result === 'no article') {
+      sendChrome('veil:toast', { kind: 'info', text: 'There is no article on this page to read' });
+    } else if (result === 'failed') {
+      sendChrome('veil:toast', { kind: 'warn', text: 'Reader view could not read this page' });
+    }
+  });
+
+  ipcMain.handle('stats:summary', guard(() => blockStats.summary()));
+  ipcMain.handle('stats:clear', guard(() => { blockStats.clear(); return blockStats.summary(); }));
+
   ipcMain.handle('vpn:status', guard(() => vpn.status()));
   ipcMain.handle('vpn:launch', guard(() => actions.vpnLaunch()));
   ipcMain.on('vpn:logs', guardOn(() => vpn.openLogs()));
@@ -1050,7 +1101,13 @@ function wireIpc() {
       node: process.versions.node
     },
     paths: { settings: path.join(app.getPath('userData'), 'settings.json'), userData: app.getPath('userData') },
-    retention: settings.get('privacy.retention', 'keep')
+    retention: settings.get('privacy.retention', 'keep'),
+    // What this machine is, and what it calls the things Veil leans on. The
+    // pages use it rather than naming Windows and hoping.
+    platform: describe(),
+    // False on a Linux box with no keyring running, where the vault cannot be
+    // opened without a master password and the page has to say so.
+    keystore: safeStorage.isEncryptionAvailable()
   })));
 
   ipcMain.on('open:external', guardOn((e, url) => {
@@ -1289,6 +1346,7 @@ if (!gotLock) {
     if (browseSession !== session.defaultSession) registerHandler(settings, session.defaultSession);
 
     adblock = new AdBlock(settings);
+    blockStats = new BlockStats({ enabled: settings.get('privacy.blockStats', true) });
 
     /* uBlock Origin, which does the part of this that is a moving target: the
        scriptlets that take the adverts out of a video page. Veil's own engine
@@ -1306,6 +1364,7 @@ if (!gotLock) {
       adblock,
       getTopUrl: (wcId) => (tabs ? tabs.topUrlFor(wcId) : ''),
       onBlocked: () => pushState(),
+      onBlockedDetail: (host, kind) => blockStats.record(host, kind),
       onMainFrameBlocked: (wcId, url) => {
         pushState();
         setImmediate(() => {
@@ -1316,18 +1375,6 @@ if (!gotLock) {
         });
       }
     });
-    // Handles the https scheme when the setting asks for it, so the YouTube
-    // watch page can be rewritten before the player reads it.
-    interceptor = new Interceptor(browseSession, {
-      settings,
-      netPrivacy,
-      getTopUrl: () => {
-        const t = tabs && tabs.active();
-        return t ? t.url : '';
-      }
-    });
-    interceptor.sync();
-
     searchEngine = new SearchEngine(settings, searchSession);
     searchEngine.warmUp();
 

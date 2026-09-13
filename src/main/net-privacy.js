@@ -47,6 +47,9 @@ class NetPrivacy {
     this.getTopUrl = deps.getTopUrl || (() => '');
     this.onBlocked = deps.onBlocked || (() => {});
     this.onMainFrameBlocked = deps.onMainFrameBlocked || (() => {});
+    // Told the domain that was refused and which kind of list named it. The
+    // page it happened on is deliberately not passed: see ./stats.
+    this.onBlockedDetail = deps.onBlockedDetail || (() => {});
     this.httpsFailures = new Set();   // hosts the user chose to reach unencrypted
     this.upgrades = new Map();        // https url -> the http url it came from
     this.install();
@@ -117,17 +120,23 @@ class NetPrivacy {
       });
 
       if (verdict) {
+        // Which kind of list answered, read straight after the decision that
+        // set it. Passed on so the statistics page can say advert or tracker
+        // rather than guessing from the domain.
+        const kind = this.adblock.kindOfLastBlock ? this.adblock.kindOfLastBlock() : '';
         if (isMain) {
           // Only a hostname list stops a navigation. A pattern rule is about
           // what a page loads, not about where you are allowed to go.
           if (verdict === 'block-host') {
             this.adblock.countHit(details.webContentsId);
             this.onMainFrameBlocked(details.webContentsId, url);
+            this.onBlockedDetail(host, kind);
             return { cancel: true };
           }
         } else if (verdict === 'block') {
           this.adblock.countHit(details.webContentsId);
           this.onBlocked(details.webContentsId);
+          this.onBlockedDetail(host, kind);
           return { cancel: true };
         } else {
           // A hostname list cannot tell "this domain serves adverts" from
@@ -137,6 +146,7 @@ class NetPrivacy {
           if (!sameSite || details.resourceType === 'script' || details.resourceType === 'xhr') {
             this.adblock.countHit(details.webContentsId);
             this.onBlocked(details.webContentsId);
+            this.onBlockedDetail(host, kind);
             return { cancel: true };
           }
         }

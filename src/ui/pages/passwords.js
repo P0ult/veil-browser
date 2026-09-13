@@ -1,6 +1,24 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
+
+/* What holds the key, in this operating system's own words. These pages used
+   to say "your Windows account" everywhere, which on a Mac is not a cosmetic
+   error: it tells somebody the wrong thing about where their passwords are. */
+let keystore = 'your account';
+let keystoreShort = 'your account';
+
+async function nameTheKeystore() {
+  try {
+    const info = await veil.appInfo();
+    const p = info && info.platform;
+    if (!p) return;
+    keystore = p.keystore || keystore;
+    keystoreShort = p.keystoreShort || keystoreShort;
+    for (const el of document.querySelectorAll('[data-keystore]')) el.textContent = keystore;
+    for (const el of document.querySelectorAll('[data-keystore-short]')) el.textContent = keystoreShort;
+  } catch {}
+}
 let settings = null;
 let entries = [];
 let editingId = null;
@@ -28,8 +46,8 @@ async function refresh() {
   if (!st.exists) { show('setup'); setTimeout(() => $('new-master').focus(), 40); return; }
 
   if (!st.unlocked) {
-    // A vault with no master password opens with the Windows account, so open
-    // it rather than presenting a box for a password that does not exist.
+    // A vault with no master password opens with the OS keystore, so open it
+    // rather than presenting a box for a password that does not exist.
     if (!st.hasMaster && st.quickUnlock) {
       try { await veil.vault.quickUnlock(); return refresh(); } catch {}
     }
@@ -48,7 +66,7 @@ async function refresh() {
   // turned off, and the "change" form becomes an "add" form.
   $('quick-note').textContent = st.hasMaster
     ? 'Opens without the master password. Anyone who can sign in as you can then read it.'
-    : 'This vault has no master password, so the Windows account is the only key.';
+    : 'This vault has no master password, so ' + keystore + ' is the only key.';
   $('change-label').textContent = st.hasMaster ? 'Change master password' : 'Add a master password';
   $('cur-master').hidden = !st.hasMaster;
   $('do-change').textContent = st.hasMaster ? 'Change' : 'Add';
@@ -235,4 +253,5 @@ $('filter').addEventListener('input', renderList);
 /* ------------------------------------------------------------------ start */
 
 veil.onSettings((s) => { settings = s; VeilTheme.apply(s); });
+nameTheKeystore();
 veil.getSettings().then((s) => { settings = s; VeilTheme.apply(s); refresh(); });

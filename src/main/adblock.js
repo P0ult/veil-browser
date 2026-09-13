@@ -117,7 +117,7 @@ class AdBlock {
     for (const l of lists) {
       if (!l.enabled) continue;
       const text = this.readList(l);
-      if (text) engine.addList(text);
+      if (text) engine.addList(text, AdBlock.kindOfList(l));
     }
 
     // The short hand-written list Veil has always carried. It is a backstop
@@ -126,7 +126,7 @@ class AdBlock {
       const before = engine.counts.host;
       const builtin = fs.readFileSync(
         path.join(__dirname, '..', '..', 'assets', 'blocklist.txt'), 'utf8');
-      engine.addList(builtin);
+      engine.addList(builtin, 'advert');
       // What this list added, not what the engine holds - most of its domains
       // are in the big lists as well, so the difference is the honest number.
       this.builtinCount = engine.counts.host - before;
@@ -157,7 +157,7 @@ class AdBlock {
   buildUser() {
     const user = new FilterEngine();
     const custom = this.settings.get('adblock.customBlock', []) || [];
-    user.addList(custom.join('\n'));
+    user.addList(custom.join('\n'), 'custom');
     this.user = user;
 
     this.allow = new Set(
@@ -171,6 +171,22 @@ class AdBlock {
   rebuild() {
     this.buildUser();
     if (this.keyForLists() !== this.listsKey) this.buildLists();
+  }
+
+  /**
+   * Which sort of list this is, for the statistics page.
+   *
+   * There is no way to tell an advert domain from a tracking domain by looking
+   * at it, and no list says so per rule - but the lists themselves are split
+   * along exactly that line, and a rule knows which list it came from. So the
+   * answer is the honest one: what kind of list stopped this request.
+   */
+  static kindOfList(entry) {
+    const name = String(entry.name || entry.url || '').toLowerCase();
+    if (name.includes('privacy') || name.includes('easyprivacy') || name.includes('dns filter')) {
+      return 'tracker';
+    }
+    return 'advert';
   }
 
   static slug(url) {
@@ -191,15 +207,26 @@ class AdBlock {
    * domain serves adverts" and "this domain is the page you are reading".
    */
   decide(ctx) {
+    this.lastKind = '';
     const own = this.user.decide(ctx);
     if (own === 'allow') return null;
 
     const verdict = own || this.engine.decide(ctx);
     if (verdict !== 'block') return null;
 
+    // Which kind of list did it, for the statistics page. Whichever engine
+    // answered 'block' is the one that knows.
+    this.lastKind = (own ? this.user.lastKind : this.engine.lastKind) || '';
+
     const fromHostList = this.engine.hasBlockedHost(ctx.host) || this.user.hasBlockedHost(ctx.host);
     return fromHostList ? 'block-host' : 'block';
   }
+
+  /**
+   * What kind of list stopped the request `decide` was just asked about.
+   * 'advert', 'tracker', 'custom', or '' when nothing was blocked.
+   */
+  kindOfLastBlock() { return this.lastKind || ''; }
 
   /** True when hostname or one of its parents is on a hostname list. */
   isBlockedHost(hostname) {

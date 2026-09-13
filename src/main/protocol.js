@@ -10,7 +10,7 @@ const UI_DIR = path.join(__dirname, '..', 'ui');
 // Hosts that map to a page of the same name in src/ui/pages.
 const PAGES = new Set([
   'home', 'search', 'settings', 'blocked', 'error', 'about', 'passwords', 'insecure',
-  'downloads'
+  'downloads', 'stats'
 ]);
 
 const MIME = {

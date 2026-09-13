@@ -38,6 +38,7 @@ function buildAppMenu(ctx) {
         { role: 'selectAll' },
         { type: 'separator' },
         { label: 'Find in page', accelerator: 'CmdOrCtrl+F', click: () => actions.openFind() },
+        { label: 'Reader view', accelerator: 'CmdOrCtrl+Alt+R', click: () => actions.reader() },
         { label: 'Find next', accelerator: 'F3', click: () => actions.findNext(true) },
         { label: 'Find previous', accelerator: 'Shift+F3', click: () => actions.findNext(false) },
         { type: 'separator' },
@@ -89,9 +90,11 @@ function buildAppMenu(ctx) {
       submenu: [
         { label: 'Turn the tunnel on or off', click: () => actions.tunnelToggle() },
         { label: 'Passwords', accelerator: 'CmdOrCtrl+Shift+P', click: () => actions.passwords() },
+        { label: 'Blocking statistics', click: () => actions.openInternal('veil://stats/') },
         { type: 'separator' },
         { label: 'Pause blocking on this site', click: () => actions.toggleSiteBlocking() },
         { label: 'Update blocklists…', click: () => actions.updateLists() },
+    { label: 'Blocking statistics', click: () => actions.openInternal('veil://stats/') },
         { label: 'Clear everything now', click: () => actions.clearData() },
         { type: 'separator' },
         {
@@ -236,16 +239,17 @@ function mainMenu(ctx) {
   const paused = host ? adblock.isAllowedSite(host) : false;
 
   const template = [
-    { label: 'New tab', accelerator: 'Ctrl+T', click: () => actions.newTab() },
-    { label: 'Reopen closed tab', accelerator: 'Ctrl+Shift+T', click: () => tabs.reopenClosed() },
+    { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => actions.newTab() },
+    { label: 'Reopen closed tab', accelerator: 'CmdOrCtrl+Shift+T', click: () => tabs.reopenClosed() },
     { type: 'separator' },
-    { label: 'Find in page', accelerator: 'Ctrl+F', click: () => actions.openFind() },
+    { label: 'Find in page', accelerator: 'CmdOrCtrl+F', click: () => actions.openFind() },
+    { label: 'Reader view', accelerator: 'CmdOrCtrl+Alt+R', click: () => actions.reader() },
     {
       label: 'Zoom',
       submenu: [
-        { label: 'Zoom in', accelerator: 'Ctrl+=', click: () => actions.zoom(+1) },
-        { label: 'Zoom out', accelerator: 'Ctrl+-', click: () => actions.zoom(-1) },
-        { label: 'Reset', accelerator: 'Ctrl+0', click: () => actions.zoom(0) }
+        { label: 'Zoom in', accelerator: 'CmdOrCtrl+=', click: () => actions.zoom(+1) },
+        { label: 'Zoom out', accelerator: 'CmdOrCtrl+-', click: () => actions.zoom(-1) },
+        { label: 'Reset', accelerator: 'CmdOrCtrl+0', click: () => actions.zoom(0) }
       ]
     },
     { type: 'separator' },
@@ -257,13 +261,13 @@ function mainMenu(ctx) {
     { label: 'Update blocklists…', click: () => actions.updateLists() },
     { label: 'Clear everything now', click: () => actions.clearData() },
     { type: 'separator' },
-    { label: 'Passwords', accelerator: 'Ctrl+Shift+P', click: () => actions.passwords() },
+    { label: 'Passwords', accelerator: 'CmdOrCtrl+Shift+P', click: () => actions.passwords() },
     { label: 'Turn the tunnel on or off', click: () => actions.tunnelToggle() },
     { type: 'separator' },
-    { label: 'Settings', accelerator: 'Ctrl+,', click: () => actions.openInternal('veil://settings/') },
+    { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => actions.openInternal('veil://settings/') },
     { label: 'About Veil', click: () => actions.openInternal('veil://about/') },
     { type: 'separator' },
-    { label: 'Quit', accelerator: 'Ctrl+Q', click: () => actions.quit() }
+    { label: 'Quit', accelerator: 'CmdOrCtrl+Q', click: () => actions.quit() }
   ];
 
   return Menu.buildFromTemplate(template);

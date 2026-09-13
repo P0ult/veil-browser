@@ -18,7 +18,7 @@ let downloads = [];
 
 /* ------------------------------------------------------------------ tabs */
 
-const tabEls = new Map();          // id -> { root, fav, title, close }
+const tabEls = new Map();          // id -> { root, fav, title, sound, close }
 
 function hostOf(url) { try { return new URL(url).hostname; } catch { return ''; } }
 
@@ -47,6 +47,17 @@ function makeTab(id) {
   const title = document.createElement('div');
   title.className = 'title';
 
+  // Shown only while the tab is making a noise, or has been silenced.
+  const sound = document.createElement('button');
+  sound.className = 'sound';
+  sound.hidden = true;
+  sound.innerHTML = '<svg class="icon"><use href="#i-sound"/></svg>';
+  sound.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    veil.action('muteTab', Number(root.dataset.id));
+  });
+
   const close = document.createElement('button');
   close.className = 'close';
   close.title = 'Close tab';
@@ -58,14 +69,14 @@ function makeTab(id) {
   });
 
   root.addEventListener('mousedown', (e) => {
-    if (e.target && e.target.closest && e.target.closest('.close')) return;
+    if (e.target && e.target.closest && e.target.closest('.close, .sound')) return;
     const tabId = Number(root.dataset.id);
     if (e.button === 0) veil.tab.select(tabId);
     if (e.button === 1) { e.preventDefault(); veil.tab.close(tabId); }
   });
 
-  root.append(fav, title, close);
-  return { root, fav, title, close };
+  root.append(fav, title, sound, close);
+  return { root, fav, title, sound, close };
 }
 
 
@@ -122,6 +133,16 @@ function updateTab(refs, t, active) {
     bg = 'hsl(' + hue(host) + ' 58% 62%)';
   }
   if (refs.fav.className !== cls) refs.fav.className = cls;
+
+  const noisy = !!(t.audible || t.muted);
+  refs.sound.hidden = !noisy;
+  if (noisy) {
+    refs.sound.dataset.muted = t.muted ? '1' : '0';
+    refs.sound.title = t.muted ? 'Unmute this tab' : 'Mute this tab';
+    const use = refs.sound.firstElementChild.firstElementChild;
+    const want = t.muted ? '#i-muted' : '#i-sound';
+    if (use.getAttribute('href') !== want) use.setAttribute('href', want);
+  }
   // textContent would take the favicon <img> with it, so only the label moves.
   if (refs.fav.firstChild && refs.fav.firstChild.nodeType === 3) {
     if (refs.fav.firstChild.nodeValue !== text) refs.fav.firstChild.nodeValue = text;
