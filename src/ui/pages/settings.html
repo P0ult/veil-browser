@@ -446,6 +446,11 @@
       </div>
 
       <div class="row">
+        <div class="info"><label>Remove YouTube adverts</label><small>YouTube puts its advert list inside the watch page itself, where the player reads it before anything else can run. To reach it Veil answers https requests itself instead of letting Chromium make them directly, and rewrites that one page on the way through. Measured faster than not doing it on every site tried, and uploads, downloads, redirects and video seeking were unaffected — but it changes how every request is made, so this is the first switch to reach for if a site starts behaving oddly.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.rewriteYouTube"></button></div>
+      </div>
+
+      <div class="row">
         <div class="info"><label>Block third-party cookies</label></div>
         <div class="ctl"><button class="switch" role="switch" data-bind="privacy.blockThirdPartyCookies"></button></div>
       </div>

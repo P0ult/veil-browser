@@ -33,7 +33,8 @@ about a query touches disk.
 | **Tunnel** | All browser traffic goes through Tor, or your own SOCKS5/HTTP endpoint, with a kill switch. On by default. |
 | **Encrypted DNS** | DNS-over-HTTPS, so lookups are not readable on the wire. |
 | **Ad and tracker blocking** | A full Adblock Plus / uBlock Origin filter engine, matching in `webRequest` before a packet leaves the machine: network patterns with resource types, first- and third-party rules, per-site rules and exceptions. EasyList, EasyPrivacy and uBlock Origin's own lists ship inside the app - about 116,000 rules - and refresh from their sources. |
-| **Adverts inside the page's own data** | Some adverts cannot be blocked by refusing a request - YouTube describes its adverts inside the same JSON the player needs to play the video. Veil runs the scriptlets the lists carry for exactly this, which is how uBlock Origin handles it too. |
+| **Adverts inside the page's own data** | Some adverts cannot be blocked by refusing a request - YouTube describes its adverts inside the same JSON the player needs to play the video. Veil runs the scriptlets the lists carry for this, as uBlock Origin does. |
+| **YouTube adverts** | The player reads its advert list out of the watch page before anything in the page can run, so Veil answers https requests itself and rewrites that page on the way through. See below. |
 | **No empty ad boxes** | Cosmetic filtering from the same lists collapses the containers a blocked ad leaves behind. The page says which class and id names it contains and is sent only the rules that could match one, so it carries forty selectors rather than forty thousand. |
 | **Third-party cookies** | Stripped from cross-site requests in both directions — `Cookie` going out, `Set-Cookie` coming back. |
 | **Referrers** | Cross-site requests send the bare origin, never the page you came from. |
@@ -46,6 +47,40 @@ about a query touches disk.
 | **HTTPS** | An upgraded address that will not load over TLS shows a warning page. Veil never falls back to plaintext on its own. |
 | **Updates** | Veil knows how old its own Chromium is and says so, and can update itself when a release feed is configured. |
 | **No AI** | Nothing summarises, completes, suggests or calls a model. The address bar has no dropdown at all — that is the point, not an omission. |
+
+## Answering https ourselves
+
+YouTube's advert list arrives inside the watch page's own JSON, and the player
+keeps a private copy of it before any page script runs. Everything that can
+normally reach a request was tried and none of it sees that data: hooks in the
+page, its iframes, its service worker, the `webRequest` layer, and the Chrome
+DevTools Protocol all observed every other request and never that one.
+
+So `src/main/intercept.js` takes the https scheme. Veil makes the request
+itself, which puts the reply in its hands before the page sees it. The watch
+page and the player API are read and rewritten - the advert keys are renamed,
+which leaves the JSON exactly as long and exactly as valid - and **everything
+else is handed straight back as a stream**, so video and images are never
+copied through the main process.
+
+Measured, three loads a page, median:
+
+| | off | on |
+|---|---|---|
+| en.wikipedia.org | 2751ms | 826ms |
+| theguardian.com | 1137ms | 763ms |
+| bbc.co.uk/news | 640ms | 413ms |
+| youtube.com/watch | 2642ms | 1624ms |
+
+POSTs, form uploads, redirect chains, range requests, downloads and error
+codes all behave identically with it on. Ad blocking still runs - blocking
+happens in `onBeforeRequest`, which fires first - but the *header* stages do
+not run for a re-issued request, so the same referrer trimming, cookie
+stripping, DNT and client-hint policy is applied inside the handler from
+`NetPrivacy.applyRequestHeaders`. Without that, turning this on would quietly
+turn the browser's privacy off.
+
+Settings → Privacy → **Remove YouTube adverts** turns it off again.
 
 ## The search engine
 

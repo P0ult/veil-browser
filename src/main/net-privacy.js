@@ -159,6 +159,66 @@ class NetPrivacy {
     return null;
   }
 
+  /**
+   * The headers Veil puts on, takes off, or trims from every outgoing request.
+   *
+   * A method rather than an inline block because the https scheme handler
+   * re-issues requests itself, and a request that skipped this would go out
+   * with the referrer, the cookies and the client hints Veil exists to manage.
+   *
+   * `headers` is modified in place.
+   */
+  applyRequestHeaders(headers, url, thirdParty) {
+    // Chrome puts these on every request. Overriding the user agent in
+    // Electron stops Chromium sending them, and a browser calling itself
+    // Chrome while sending no client hints is one no site has ever seen -
+    // which is what Google's sign-in page objects to.
+    for (const [k, v] of Object.entries(CLIENT_HINTS)) {
+      if (headers[k] === undefined) headers[k] = v;
+    }
+
+    if (this.p('sendDnt')) {
+      headers['DNT'] = '1';
+      headers['Sec-GPC'] = '1';
+    }
+
+    const host = hostOf(url);
+
+    if (this.p('trimReferrer') && headers['Referer']) {
+      const refHost = hostOf(headers['Referer']);
+      if (refHost && baseDomain(refHost) !== baseDomain(host)) {
+        // Cross-site: send the bare origin, never the full path.
+        try { headers['Referer'] = new URL(headers['Referer']).origin + '/'; }
+        catch { delete headers['Referer']; }
+      }
+    }
+
+    if (this.p('blockThirdPartyCookies') && thirdParty && headers['Cookie']) {
+      delete headers['Cookie'];
+    }
+
+    const ua = this.p('spoofUserAgent') ? (this.p('userAgent') || '') : '';
+    if (ua) headers['User-Agent'] = ua;
+
+    return headers;
+  }
+
+  /** The same, for what comes back. `headers` is modified in place. */
+  applyResponseHeaders(headers, thirdParty) {
+    if (this.p('blockThirdPartyCookies') && thirdParty) {
+      for (const key of Object.keys(headers)) {
+        if (key.toLowerCase() === 'set-cookie') delete headers[key];
+      }
+    }
+    // Sites that ask the browser to run FLoC/Topics-style ad measurement.
+    for (const key of Object.keys(headers)) {
+      const k = key.toLowerCase();
+      if (k === 'permissions-policy' || k === 'feature-policy') continue;
+      if (k === 'report-to' || k === 'nel') delete headers[key];
+    }
+    return headers;
+  }
+
   install() {
     const wr = this.session.webRequest;
 
@@ -171,36 +231,7 @@ class NetPrivacy {
     wr.onBeforeSendHeaders((details, cb) => {
       const headers = details.requestHeaders;
       try {
-        // Chrome puts these on every request. Overriding the user agent in
-        // Electron stops Chromium sending them, and a browser calling itself
-        // Chrome while sending no client hints is one no site has ever seen -
-        // which is what Google's sign-in page objects to.
-        for (const [k, v] of Object.entries(CLIENT_HINTS)) {
-          if (headers[k] === undefined) headers[k] = v;
-        }
-
-        if (this.p('sendDnt')) {
-          headers['DNT'] = '1';
-          headers['Sec-GPC'] = '1';
-        }
-        const host = hostOf(details.url);
-        const thirdParty = this.isThirdParty(details);
-
-        if (this.p('trimReferrer') && headers['Referer']) {
-          const refHost = hostOf(headers['Referer']);
-          if (refHost && baseDomain(refHost) !== baseDomain(host)) {
-            // Cross-site: send the bare origin, never the full path.
-            try { headers['Referer'] = new URL(headers['Referer']).origin + '/'; }
-            catch { delete headers['Referer']; }
-          }
-        }
-
-        if (this.p('blockThirdPartyCookies') && thirdParty && headers['Cookie']) {
-          delete headers['Cookie'];
-        }
-
-        const ua = this.p('spoofUserAgent') ? (this.p('userAgent') || '') : '';
-        if (ua) headers['User-Agent'] = ua;
+        this.applyRequestHeaders(headers, details.url, this.isThirdParty(details));
       } catch {}
       cb({ requestHeaders: headers });
     });
@@ -208,17 +239,7 @@ class NetPrivacy {
     wr.onHeadersReceived((details, cb) => {
       const headers = details.responseHeaders || {};
       try {
-        if (this.p('blockThirdPartyCookies') && this.isThirdParty(details)) {
-          for (const key of Object.keys(headers)) {
-            if (key.toLowerCase() === 'set-cookie') delete headers[key];
-          }
-        }
-        // Sites that ask the browser to run FLoC/Topics-style ad measurement.
-        for (const key of Object.keys(headers)) {
-          const k = key.toLowerCase();
-          if (k === 'permissions-policy' || k === 'feature-policy') continue;
-          if (k === 'report-to' || k === 'nel') delete headers[key];
-        }
+        this.applyResponseHeaders(headers, this.isThirdParty(details));
       } catch {}
       cb({ responseHeaders: headers });
     });

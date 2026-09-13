@@ -77,6 +77,17 @@ const DEFAULTS = {
     retention: 'keep',
     blockAds: true,
     cosmeticFiltering: true,
+    // Veil answers https requests itself so it can rewrite the YouTube watch
+    // page before the player reads its advert list out of it. It is the only
+    // layer that reaches them - the page, its frames, its service worker, the
+    // webRequest layer and the debugger were all tried and none of them sees
+    // that data.
+    //
+    // On by default because it measured faster than not doing it on every site
+    // tried, and because POSTs, uploads, redirects, range requests, downloads
+    // and error codes all behaved identically with it on. It is still the
+    // first switch to reach for if a site starts misbehaving.
+    rewriteYouTube: true,
     blockThirdPartyCookies: true,
     trimReferrer: true,
     httpsOnly: true,

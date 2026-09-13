@@ -6,6 +6,7 @@ const { app, BaseWindow, WebContentsView, session, ipcMain, Menu, dialog, shell,
 const { Settings, isLightColour, baseBackground } = require('./settings');
 const { AdBlock } = require('./adblock');
 const { NetPrivacy } = require('./net-privacy');
+const { Interceptor } = require('./intercept');
 const { SearchEngine } = require('./search');
 const { Vpn } = require('./vpn');
 const { Tunnel } = require('./tunnel');
@@ -51,7 +52,7 @@ registerScheme();
 const DEV = process.argv.includes('--dev');
 const CHROME_MIN_H = 78;
 
-let settings, adblock, netPrivacy, searchEngine, vpn, tunnel, vault, updater, tabs;
+let settings, adblock, netPrivacy, interceptor, searchEngine, vpn, tunnel, vault, updater, tabs;
 let win = null, chromeView = null, railView = null, browseSession = null, searchSession = null;
 
 /* The chrome's shape and, when it floats, how much of it is out.
@@ -109,6 +110,7 @@ function broadcast(channel, payload) {
 function broadcastSettings() {
   broadcast('veil:settings', settings.all());
   watchHover(settings.get('appearance.autoHideChrome', false));
+  if (interceptor) interceptor.sync();
 }
 
 /* ------------------------------------------------- reaching for the chrome
@@ -1286,6 +1288,18 @@ if (!gotLock) {
         });
       }
     });
+    // Handles the https scheme when the setting asks for it, so the YouTube
+    // watch page can be rewritten before the player reads it.
+    interceptor = new Interceptor(browseSession, {
+      settings,
+      netPrivacy,
+      getTopUrl: () => {
+        const t = tabs && tabs.active();
+        return t ? t.url : '';
+      }
+    });
+    interceptor.sync();
+
     searchEngine = new SearchEngine(settings, searchSession);
     searchEngine.warmUp();
 
