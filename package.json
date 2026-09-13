@@ -27,6 +27,9 @@
       "assets/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      "assets/ubo/**/*"
+    ],
     "win": {
       "target": [
         "nsis",

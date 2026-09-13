@@ -26,7 +26,15 @@
 const path = require('node:path');
 const { webContents } = require('electron');
 
-const DIR = path.join(__dirname, '..', '..', 'assets', 'ubo');
+/*
+ * Chromium loads an extension from real files, and a packaged Veil lives
+ * inside app.asar, which is an archive rather than a directory. So assets/ubo
+ * is listed in `asarUnpack` and sits beside the archive instead of in it -
+ * this rewrites the path to match. In a checkout there is no archive and the
+ * replace does nothing.
+ */
+const DIR = path.join(__dirname, '..', '..', 'assets', 'ubo')
+  .replace('app.asar' + path.sep, 'app.asar.unpacked' + path.sep);
 
 /**
  * The one rule uBlock's own lists cannot apply here.
