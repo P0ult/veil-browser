@@ -146,7 +146,8 @@ function pageContextMenu(ctx, tab, params) {
     add({ role: 'cut', enabled: !!params.selectionText });
     add({ role: 'copy', enabled: !!params.selectionText });
     add({ role: 'paste' });
-    add({ label: 'Paste as plain text', click: () => wc.insertText(clipboard.readText()) });
+    add({ label: 'Paste as plain text',
+          click: async () => wc.insertText(String(await clipboard.readText() || '')) });
     add({ role: 'selectAll' });
     need = true;
   } else if (params.selectionText) {
@@ -169,6 +170,59 @@ function pageContextMenu(ctx, tab, params) {
   add({ label: 'Select all', role: 'selectAll' });
   add({ type: 'separator' });
   add({ label: 'Inspect element', click: () => { wc.inspectElement(params.x, params.y); } });
+
+  return menu;
+}
+
+
+/**
+ * Right-clicking the address bar.
+ *
+ * The chrome is a web page, so without this it gets Chromium's nothing at all:
+ * a right-click in the address bar did not even offer Paste. The two entries
+ * worth having that a plain text field does not give you are "Paste and go",
+ * which is the reason most people right-click an address bar in the first
+ * place, and "Copy the current address", which is what they meant when the bar
+ * was not focused.
+ */
+function omniboxContextMenu(ctx, params) {
+  const { actions, chromeContents, currentUrl } = ctx;
+  const menu = new Menu();
+  const add = o => menu.append(new MenuItem(o));
+  const flags = params.editFlags || {};
+  // Handed in already read: the clipboard is asynchronous from Electron 44,
+  // and whether Paste is live has to be known while the menu is being built.
+  const pasteable = String(ctx.clipboardText || '').trim();
+
+  add({ role: 'undo', enabled: flags.canUndo !== false });
+  add({ role: 'redo', enabled: flags.canRedo !== false });
+  add({ type: 'separator' });
+  add({ role: 'cut', enabled: !!params.selectionText });
+  add({ role: 'copy', enabled: !!params.selectionText });
+  add({ role: 'paste', enabled: !!pasteable });
+
+  add({
+    label: 'Paste and go',
+    enabled: !!pasteable,
+    click: () => actions.go(pasteable)
+  });
+
+  add({ type: 'separator' });
+  add({
+    label: 'Copy the current address',
+    enabled: !!currentUrl,
+    click: () => clipboard.writeText(currentUrl)
+  });
+  add({
+    label: 'Select all',
+    enabled: flags.canSelectAll !== false,
+    click: () => { if (chromeContents) chromeContents.selectAll(); }
+  });
+  add({
+    label: 'Delete',
+    enabled: !!params.selectionText,
+    click: () => { if (chromeContents) chromeContents.delete(); }
+  });
 
   return menu;
 }
@@ -215,4 +269,4 @@ function mainMenu(ctx) {
   return Menu.buildFromTemplate(template);
 }
 
-module.exports = { buildAppMenu, pageContextMenu, mainMenu };
+module.exports = { buildAppMenu, pageContextMenu, omniboxContextMenu, mainMenu };

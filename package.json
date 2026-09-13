@@ -1,7 +1,7 @@
 {
   "name": "veil-browser",
   "productName": "Veil",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "A private, ad-free browser and meta-search engine.",
   "main": "src/main/index.js",
   "scripts": {

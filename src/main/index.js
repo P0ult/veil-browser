@@ -18,7 +18,7 @@ const { Updater } = require('./updater');
 const crypto = require('node:crypto');
 const { TabManager } = require('./tabs');
 const { registerScheme, registerHandler } = require('./protocol');
-const { buildAppMenu, pageContextMenu, mainMenu } = require('./menus');
+const { buildAppMenu, pageContextMenu, omniboxContextMenu, mainMenu } = require('./menus');
 
 /* --------------------------------------------------------------- switches
    Everything Chromium does in the background that we do not want: prediction,
@@ -643,6 +643,22 @@ function createWindow() {
   chromeView.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) tabs.create(url);
     return { action: 'deny' };
+  });
+
+  // The chrome is a web page, so a right-click in the address bar landed on
+  // nothing. Give it the menu a browser address bar is expected to have.
+  chromeView.webContents.on('context-menu', async (e, params) => {
+    if (!params.isEditable) return;
+    const tab = tabs && tabs.active();
+    let clipboardText = '';
+    try { clipboardText = String(await clipboard.readText() || ''); } catch {}
+    if (!win || win.isDestroyed()) return;
+    omniboxContextMenu({
+      actions,
+      chromeContents: chromeView.webContents,
+      currentUrl: tab ? tab.url : '',
+      clipboardText
+    }, params).popup({ window: win });
   });
 
   // The tab rail is a second view rather than part of the chrome document, so
@@ -1272,6 +1288,30 @@ if (!gotLock) {
     });
     searchEngine = new SearchEngine(settings, searchSession);
     searchEngine.warmUp();
+
+    /* Keep the filter lists current without being asked.
+     *
+     * uBlock Origin refreshes its lists on a schedule, and one of the lists
+     * Veil ships - quick fixes - is where the answer to YouTube's latest
+     * advert delivery lands, often within days of it changing. A bundled copy
+     * is only current on the day it was built, so a browser that never
+     * refreshes is a browser whose YouTube blocking rots.
+     *
+     * Three days, and it waits half a minute after launch so it is never
+     * competing with the first page the user opens. */
+    const REFRESH_AFTER = 3 * 24 * 60 * 60 * 1000;
+    setTimeout(() => {
+      const last = Number(settings.get('adblock.lastUpdated', 0)) || 0;
+      if (!settings.get('privacy.blockAds', true)) return;
+      if (Date.now() - last < REFRESH_AFTER) return;
+      adblock.updateLists()
+        .then((r) => {
+          const failed = r.results.filter(x => !x.ok);
+          console.log('[adblock] refreshed ' + (r.results.length - failed.length) +
+                      '/' + r.results.length + ' lists, ' + r.total + ' rules');
+        })
+        .catch(() => {});
+    }, 30000);
 
     vault = new Vault(settings);
     vpn = new Vpn(settings);
