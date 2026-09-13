@@ -14,7 +14,7 @@ function findVpn() {
 }
 
 const DEFAULTS = {
-  version: 6,
+  version: 7,
   appearance: {
     accent: '#7dd3a0',
     bgType: 'gradient',            // solid | gradient | image
@@ -78,16 +78,16 @@ const DEFAULTS = {
     blockAds: true,
     cosmeticFiltering: true,
     // Veil answers https requests itself so it can rewrite the YouTube watch
-    // page before the player reads its advert list out of it. It is the only
-    // layer that reaches them - the page, its frames, its service worker, the
-    // webRequest layer and the debugger were all tried and none of them sees
-    // that data.
+    // page before the player reads its advert list out of it.
     //
-    // On by default because it measured faster than not doing it on every site
-    // tried, and because POSTs, uploads, redirects, range requests, downloads
-    // and error codes all behaved identically with it on. It is still the
-    // first switch to reach for if a site starts misbehaving.
-    rewriteYouTube: true,
+    // Off, and off for a measured reason: Google's account endpoints refuse a
+    // request that has been re-issued this way. accounts.google.com answers
+    // 401 "the server cannot process the request because it is malformed"
+    // whatever is done to the headers - copying the cookie, dropping it,
+    // omitting credentials, or passing the request through entirely untouched.
+    // It is the re-issuing itself that they reject, so there is nothing to
+    // tune. Signing in to Google matters more than this does.
+    rewriteYouTube: false,
     blockThirdPartyCookies: true,
     trimReferrer: true,
     httpsOnly: true,
@@ -284,6 +284,16 @@ function migrate(data) {
     // Whatever is left was added by the user.
     ab.lists = fresh.concat([...had.values()]);
     data.version = 6;
+    changed = true;
+  }
+
+  if (data.version === 6) {
+    // 1.0.14 shipped this on. It breaks signing in to Google - their account
+    // endpoints refuse any request Veil re-issues - so a profile that saved
+    // the old default gets it turned off again rather than staying broken.
+    const p = data.privacy || (data.privacy = {});
+    p.rewriteYouTube = false;
+    data.version = 7;
     changed = true;
   }
 

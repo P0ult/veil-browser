@@ -446,7 +446,7 @@
       </div>
 
       <div class="row">
-        <div class="info"><label>Remove YouTube adverts</label><small>YouTube puts its advert list inside the watch page itself, where the player reads it before anything else can run. To reach it Veil answers https requests itself instead of letting Chromium make them directly, and rewrites that one page on the way through. Measured faster than not doing it on every site tried, and uploads, downloads, redirects and video seeking were unaffected — but it changes how every request is made, so this is the first switch to reach for if a site starts behaving oddly.</small></div>
+        <div class="info"><label>Remove YouTube adverts</label><small><strong>Breaks signing in to Google.</strong> YouTube keeps its advert list inside the watch page, where the player reads it before anything else can run; reaching it means Veil answering https requests itself rather than letting Chromium make them. Google's account endpoints refuse any request re-issued that way — <code>401, malformed</code> — and no amount of header handling changes it. It removes adverts from a watch page opened directly, and not from one you click through to inside YouTube. Off unless you want that trade.</small></div>
         <div class="ctl"><button class="switch" role="switch" data-bind="privacy.rewriteYouTube"></button></div>
       </div>
 

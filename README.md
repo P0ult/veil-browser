@@ -34,7 +34,7 @@ about a query touches disk.
 | **Encrypted DNS** | DNS-over-HTTPS, so lookups are not readable on the wire. |
 | **Ad and tracker blocking** | A full Adblock Plus / uBlock Origin filter engine, matching in `webRequest` before a packet leaves the machine: network patterns with resource types, first- and third-party rules, per-site rules and exceptions. EasyList, EasyPrivacy and uBlock Origin's own lists ship inside the app - about 116,000 rules - and refresh from their sources. |
 | **Adverts inside the page's own data** | Some adverts cannot be blocked by refusing a request - YouTube describes its adverts inside the same JSON the player needs to play the video. Veil runs the scriptlets the lists carry for this, as uBlock Origin does. |
-| **YouTube adverts** | The player reads its advert list out of the watch page before anything in the page can run, so Veil answers https requests itself and rewrites that page on the way through. See below. |
+| **YouTube adverts** | Partly. The player reads its advert list out of the watch page before anything in the page can run; Veil can answer https requests itself and rewrite that page, but doing so breaks signing in to Google, so it ships off. See below. |
 | **No empty ad boxes** | Cosmetic filtering from the same lists collapses the containers a blocked ad leaves behind. The page says which class and id names it contains and is sent only the rules that could match one, so it carries forty selectors rather than forty thousand. |
 | **Third-party cookies** | Stripped from cross-site requests in both directions — `Cookie` going out, `Set-Cookie` coming back. |
 | **Referrers** | Cross-site requests send the bare origin, never the page you came from. |
@@ -80,7 +80,21 @@ stripping, DNT and client-hint policy is applied inside the handler from
 `NetPrivacy.applyRequestHeaders`. Without that, turning this on would quietly
 turn the browser's privacy off.
 
-Settings → Privacy → **Remove YouTube adverts** turns it off again.
+### Why it ships off
+
+Google's account endpoints refuse a request that has been re-issued this way.
+`accounts.google.com` answers `401 — the server cannot process the request
+because it is malformed`, and it does that whatever is done to the headers:
+copying the cookie through, dropping it, omitting credentials, or handing the
+request back completely untouched. It is the re-issuing itself they reject, so
+there is nothing to tune.
+
+It also only reaches a watch page opened directly. Click through to the next
+video inside YouTube and the player data arrives over a request issued from a
+context none of this sees, so the adverts come back.
+
+Settings → Privacy → **Remove YouTube adverts** turns it on for anyone who
+wants that trade.
 
 ## The search engine
 
