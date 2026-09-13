@@ -14,7 +14,7 @@ function findVpn() {
 }
 
 const DEFAULTS = {
-  version: 7,
+  version: 8,
   appearance: {
     accent: '#7dd3a0',
     bgType: 'gradient',            // solid | gradient | image
@@ -102,6 +102,11 @@ const DEFAULTS = {
   adblock: {
     customBlock: [],
     allowlist: [],
+    // uBlock Origin itself, shipped in assets/ubo and loaded into the browsing
+    // session. It is what stops a video advert; Veil's own engine keeps the
+    // shield count and the per-site toggle. Off means Veil's engine alone,
+    // which still blocks but will fall behind on YouTube.
+    ubo: true,
     // The first seven ship inside Veil and are on by default: they are the
     // set uBlock Origin uses by default too. `file` names the copy that
     // shipped; `url` is where a fresher one comes from, and once one has been
@@ -294,6 +299,16 @@ function migrate(data) {
     const p = data.privacy || (data.privacy = {});
     p.rewriteYouTube = false;
     data.version = 7;
+    changed = true;
+  }
+
+  if (data.version === 7) {
+    // uBlock Origin now ships inside Veil. An existing profile has no opinion
+    // about it, so it gets the new default rather than being left without the
+    // thing that stops the adverts.
+    const ab = data.adblock || (data.adblock = {});
+    if (ab.ubo === undefined) ab.ubo = true;
+    data.version = 8;
     changed = true;
   }
 

@@ -33,8 +33,8 @@ about a query touches disk.
 | **Tunnel** | All browser traffic goes through Tor, or your own SOCKS5/HTTP endpoint, with a kill switch. On by default. |
 | **Encrypted DNS** | DNS-over-HTTPS, so lookups are not readable on the wire. |
 | **Ad and tracker blocking** | A full Adblock Plus / uBlock Origin filter engine, matching in `webRequest` before a packet leaves the machine: network patterns with resource types, first- and third-party rules, per-site rules and exceptions. EasyList, EasyPrivacy and uBlock Origin's own lists ship inside the app - about 116,000 rules - and refresh from their sources. |
-| **Adverts inside the page's own data** | Some adverts cannot be blocked by refusing a request - YouTube describes its adverts inside the same JSON the player needs to play the video. Veil runs the scriptlets the lists carry for this, as uBlock Origin does. |
-| **YouTube adverts** | Partly. The player reads its advert list out of the watch page before anything in the page can run; Veil can answer https requests itself and rewrite that page, but doing so breaks signing in to Google, so it ships off. See below. |
+| **Adverts inside the page's own data** | Some adverts cannot be blocked by refusing a request - YouTube describes its adverts inside the same JSON the player needs to play the video. uBlock Origin's scriptlets handle these, and are kept current by its maintainers rather than by this project. |
+| **YouTube adverts** | Yes. uBlock Origin runs inside Veil, patched to work under Electron, and its scriptlets take the advert data out of the player before it is read - on a watch page opened directly and on a video clicked through to inside the site. Settings -> Privacy -> Use uBlock Origin. |
 | **No empty ad boxes** | Cosmetic filtering from the same lists collapses the containers a blocked ad leaves behind. The page says which class and id names it contains and is sent only the rules that could match one, so it carries forty selectors rather than forty thousand. |
 | **Third-party cookies** | Stripped from cross-site requests in both directions — `Cookie` going out, `Set-Cookie` coming back. |
 | **Referrers** | Cross-site requests send the bare origin, never the page you came from. |
@@ -48,53 +48,101 @@ about a query touches disk.
 | **Updates** | Veil knows how old its own Chromium is and says so, and can update itself when a release feed is configured. |
 | **No AI** | Nothing summarises, completes, suggests or calls a model. The address bar has no dropdown at all — that is the point, not an omission. |
 
-## Answering https ourselves
+## Running uBlock Origin
 
-YouTube's advert list arrives inside the watch page's own JSON, and the player
-keeps a private copy of it before any page script runs. Everything that can
-normally reach a request was tried and none of it sees that data: hooks in the
-page, its iframes, its service worker, the `webRequest` layer, and the Chrome
-DevTools Protocol all observed every other request and never that one.
+Veil has its own filter engine, and for what it is it is a good one: same
+lists, same rules, same collapsing of the empty boxes a blocked advert leaves
+behind. It cannot stop a video advert. Those are not described in a list at
+all — YouTube ships its advert schedule inside the same JSON the player needs
+to play the video, and the player reads it before any page script runs. What
+stops them is a set of small scripts that uBlock Origin rewrites every time
+YouTube changes the delivery, and keeping pace with that by hand is not a race
+this project can win.
 
-So `src/main/intercept.js` takes the https scheme. Veil makes the request
-itself, which puts the reply in its hands before the page sees it. The watch
-page and the player API are read and rewritten - the advert keys are renamed,
-which leaves the JSON exactly as long and exactly as valid - and **everything
-else is handed straight back as a stream**, so video and images are never
-copied through the main process.
+So uBlock Origin runs inside Veil, and its own maintainers keep it current.
 
-Measured, three loads a page, median:
+### The fork
 
-| | off | on |
-|---|---|---|
-| en.wikipedia.org | 2751ms | 826ms |
-| theguardian.com | 1137ms | 763ms |
-| bbc.co.uk/news | 640ms | 413ms |
-| youtube.com/watch | 2642ms | 1624ms |
+uBlock is written against a full Chrome; Electron implements a subset. Loaded
+unmodified it blocks nothing at all — not because blocking fails, but because
+startup dies on the second line of its API table, reaching for
+`chrome.browserAction`. Measured: 185 advert-host requests without it, 189
+with it.
 
-POSTs, form uploads, redirect chains, range requests, downloads and error
-codes all behave identically with it on. Ad blocking still runs - blocking
-happens in `onBeforeRequest`, which fires first - but the *header* stages do
-not run for a re-issued request, so the same referrer trimming, cookie
-stripping, DNT and client-hint policy is applied inside the handler from
-`NetPrivacy.applyRequestHeaders`. Without that, turning this on would quietly
-turn the browser's privacy off.
+The fork is one new file and one added import line in each of two others:
 
-### Why it ships off
+```
+assets/ubo/js/veil-chrome.js      new — the APIs Electron lacks
+assets/ubo/js/webext.js           + import { chrome } from './veil-chrome.js'
+assets/ubo/js/vapi-background.js  + import { chrome as browser } from './veil-chrome.js'
+```
 
-Google's account endpoints refuse a request that has been re-issued this way.
-`accounts.google.com` answers `401 — the server cannot process the request
-because it is malformed`, and it does that whatever is done to the headers:
-copying the cookie through, dropping it, omitting credentials, or handing the
-request back completely untouched. It is the re-issuing itself they reject, so
-there is nothing to tune.
+Patching the `chrome` global from a script does not work here. It appears to —
+every property is present when the script ends — and then Electron puts its own
+object back before uBlock's modules run. The substitution happens in module
+scope instead, where nothing can reach in and undo it.
 
-It also only reaches a watch page opened directly. Click through to the next
-video inside YouTube and the player data arrives over a request issued from a
-context none of this sees, so the adverts come back.
+Most of what `veil-chrome.js` supplies is furniture for a browser UI uBlock has
+not been given: a toolbar badge, a context menu, a window list, a Chrome
+preference. One part is not.
 
-Settings → Privacy → **Remove YouTube adverts** turns it on for anyone who
-wants that trade.
+### The part that mattered
+
+**Electron fires no tab events, and reports `tabId: -1` on every request.** No
+`tabs.onUpdated`, no `tabs.onCreated`, no `webNavigation` — and a main-frame
+request carries nothing that identifies which tab it belongs to.
+
+uBlock builds its per-page state from those events, and answers a content
+script's request for cosmetic filters and scriptlets only once that state
+exists. Without them it loaded all ten of its lists, blocked advert hosts
+perfectly well, and filtered nothing whatsoever on the page itself. Every
+content script asked for its filters and was answered with nothing.
+
+Navigation is reconstructed from two signals. A content script's port opens at
+document start and its sender carries the tab id, the frame id and the URL —
+that listener is registered as the module loads, before uBlock's own messaging
+sets up, so the commit is dispatched before uBlock reads the first message off
+that port. Veil's main process also says so directly, from
+`did-start-navigation`, which is earlier still; an extension tab id is the id
+of its `webContents`, which is what makes that sayable at all. A slow
+`tabs.query` sweep covers same-document navigation and retires the state of
+tabs that have closed, neither of which Electron announces either.
+
+### One rule uBlock cannot apply here
+
+Clicking a video inside YouTube fetches `/youtubei/v1/get_watch`, not
+`/player`. uBlock strips the advert data out of that response with `$replace=`
+filters, which need `webRequest.filterResponseData` — Firefox only. Its
+Chromium stand-in is a scriptlet covering `"adSlots"` alone, and the line that
+would cover `"adPlacements"` ships commented out. So on Chromium, in Chrome as
+much as in Veil, the video you click through to still arrives with its advert
+breaks scheduled.
+
+Veil enables that commented-out line as a user filter, verbatim. Over three
+videos reached by clicking, `adPlacements` was present on two of three without
+it and on none of three with it.
+
+### What this replaced
+
+An earlier version answered the `https` scheme itself, making each request from
+the main process so the watch page could be rewritten before the player read
+it. It worked, and it was fast — median page load fell on every site measured —
+but `accounts.google.com` refuses any request re-issued that way with
+`401 — malformed`, whatever is done to the headers. It also never reached a
+video clicked through to inside the site. `src/main/intercept.js` remains, off,
+behind `privacy.rewriteYouTube`; uBlock does the same job without breaking
+sign-in.
+
+### Alongside it
+
+Veil's own engine keeps running: it is what the shield button counts and what
+the per-site toggle switches off. While uBlock is up, Veil stops serving its
+own cosmetic rules and scriptlets — two stylesheets for one page is work twice
+over, and two sets of scriptlets pinning the same property is how both end up
+broken.
+
+Settings → Privacy → **Use uBlock Origin**. It needs *Stay signed in*: an
+extension cannot load into a profile that is never written to disk.
 
 ## The search engine
 
@@ -412,6 +460,7 @@ src/
 assets/
   blocklist.txt    a short hand-written domain list, as a backstop
   filters/         EasyList, EasyPrivacy and uBlock Origin's lists
+  ubo/             uBlock Origin itself, patched to run under Electron
 ```
 
 Two rules hold the security model together: the preload only hands the `veil`
@@ -528,3 +577,25 @@ covered in [RELEASING.md](RELEASING.md):
 `Veil` appears in `package.json` (`productName`, `build.appId`), in the
 `veil://` scheme registered in `src/main/protocol.js`, and as display text in
 the UI. The scheme name is the only one that has to change everywhere at once.
+
+## Third-party software
+
+Veil bundles [uBlock Origin](https://github.com/gorhill/uBlock) 1.74.0 in
+`assets/ubo/`, under the **GNU General Public License v3**. Its full source
+ships with the application, unminified, as that licence requires, along with
+its own `LICENSE.txt`.
+
+It is modified. uBlock is written against a full Chrome, and Electron
+implements a subset of those APIs, so three changes were needed:
+
+- `assets/ubo/js/veil-chrome.js` — new file. Supplies the extension APIs
+  Electron lacks, and rebuilds the navigation events it never fires.
+- `assets/ubo/js/webext.js` — one added import line.
+- `assets/ubo/js/vapi-background.js` — one added import line.
+
+Nothing else in uBlock Origin is touched, and nothing in those changes alters
+what it blocks. The file's own header explains each part and why it is there.
+
+Filter lists in `assets/filters/` are the work of their respective authors:
+EasyList and EasyPrivacy (GPLv3 / CC BY-SA 3.0) and uBlock Origin's own lists
+(GPLv3).

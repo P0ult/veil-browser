@@ -446,8 +446,8 @@
       </div>
 
       <div class="row">
-        <div class="info"><label>Remove YouTube adverts</label><small><strong>Breaks signing in to Google.</strong> YouTube keeps its advert list inside the watch page, where the player reads it before anything else can run; reaching it means Veil answering https requests itself rather than letting Chromium make them. Google's account endpoints refuse any request re-issued that way — <code>401, malformed</code> — and no amount of header handling changes it. It removes adverts from a watch page opened directly, and not from one you click through to inside YouTube. Off unless you want that trade.</small></div>
-        <div class="ctl"><button class="switch" role="switch" data-bind="privacy.rewriteYouTube"></button></div>
+        <div class="info"><label>Use uBlock Origin</label><small>Runs uBlock Origin itself inside Veil, rather than only reading the same filter lists. It is what stops a video advert playing: those are not blocked by a list but by small scripts uBlock rewrites each time YouTube changes how it delivers them, and keeping up with that by hand is not a race this browser can win. Veil&rsquo;s own blocker keeps running underneath &mdash; it is what the shield button counts and what the per-site toggle switches off &mdash; but it leaves the page itself to uBlock while this is on. Needs <em>Stay signed in</em>: an extension cannot load into a profile that is never written to disk.</small></div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="adblock.ubo"></button></div>
       </div>
 
       <div class="row">

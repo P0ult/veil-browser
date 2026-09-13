@@ -5,6 +5,7 @@ const { app, BaseWindow, WebContentsView, session, ipcMain, Menu, dialog, shell,
 
 const { Settings, isLightColour, baseBackground } = require('./settings');
 const { AdBlock } = require('./adblock');
+const { UBlockOrigin } = require('./ubo');
 const { NetPrivacy } = require('./net-privacy');
 const { Interceptor } = require('./intercept');
 const { SearchEngine } = require('./search');
@@ -52,7 +53,7 @@ registerScheme();
 const DEV = process.argv.includes('--dev');
 const CHROME_MIN_H = 78;
 
-let settings, adblock, netPrivacy, interceptor, searchEngine, vpn, tunnel, vault, updater, tabs;
+let settings, adblock, ubo, netPrivacy, interceptor, searchEngine, vpn, tunnel, vault, updater, tabs;
 let win = null, chromeView = null, railView = null, browseSession = null, searchSession = null;
 
 /* The chrome's shape and, when it floats, how much of it is out.
@@ -697,6 +698,7 @@ function createWindow() {
     onUpgradeFailed: (url) => netPrivacy.originalFor(url),
     blockedCount: (wcId) => adblock.countFor(wcId),
     resetBlocked: (wcId) => adblock.resetCount(wcId),
+    onNavigate: (wcId, url) => ubo.navigated(wcId, url),
     onFindResult: (r) => sendChrome('veil:find-result', r)
   });
 
@@ -858,6 +860,10 @@ function wireIpc() {
   function cosmeticOn(host) {
     if (!settings.get('privacy.blockAds', true)) return false;
     if (!settings.get('privacy.cosmeticFiltering', true)) return false;
+    // uBlock hides the same elements from its own lists, kept more current
+    // than Veil's copies. Two stylesheets for one page is work twice over and
+    // a way for the two to disagree, so only one of them writes.
+    if (ubo.active) return false;
     return !adblock.isAllowedSite(host);
   }
 
@@ -883,6 +889,9 @@ function wireIpc() {
       // playing, which is not the same kind of thing as collapsing an empty
       // banner, and it should not be switched off by the setting for that.
       if (!settings.get('privacy.blockAds', true)) return;
+      // uBlock's scriptlets are the ones its maintainers keep current, and two
+      // sets pinning the same property is how both end up broken.
+      if (ubo.active) return;
       const host = String(hostname || '').slice(0, 255);
       if (adblock.isAllowedSite(host)) return;
       event.returnValue = adblock.scriptletsFor(host);
@@ -921,12 +930,19 @@ function wireIpc() {
 
   ipcMain.handle('settings:set', guard((e, patch) => {
     const before = settings.get('privacy.retention');
+    const uboBefore = settings.get('adblock.ubo', true);
     const data = settings.update(patch || {});
     adblock.rebuild();
     broadcastSettings();
     startVpnPolling();
     if (before !== settings.get('privacy.retention')) {
       sendChrome('veil:toast', { kind: 'info', text: 'Restart Veil for the profile change to take effect' });
+    }
+    // An extension is loaded into a session when that session is made, so this
+    // one only changes on the way back up.
+    if (uboBefore !== settings.get('adblock.ubo', true)) {
+      sendChrome('veil:toast', { kind: 'info', text: 'Restart Veil to ' +
+        (settings.get('adblock.ubo', true) ? 'start' : 'stop') + ' uBlock Origin' });
     }
     return data;
   }));
@@ -1273,6 +1289,18 @@ if (!gotLock) {
     if (browseSession !== session.defaultSession) registerHandler(settings, session.defaultSession);
 
     adblock = new AdBlock(settings);
+
+    /* uBlock Origin, which does the part of this that is a moving target: the
+       scriptlets that take the adverts out of a video page. Veil's own engine
+       keeps running alongside it - it is what the shield button counts, and
+       what the per-site toggle turns off - but it stands down from cosmetics
+       and scriptlets while uBlock is up, so the two are not writing over each
+       other on the same page. */
+    ubo = new UBlockOrigin(settings);
+    ubo.load(browseSession).then(ok => {
+      if (ok) console.log('[ubo] uBlock Origin ' + ubo.stats().version + ' loaded');
+    }).catch(e => console.error('[ubo] load failed:', e.message));
+
     netPrivacy = new NetPrivacy(browseSession, {
       settings,
       adblock,

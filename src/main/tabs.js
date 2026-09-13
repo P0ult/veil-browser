@@ -27,6 +27,9 @@ class TabManager {
     this.onFindResult = opts.onFindResult || (() => {});
     this.blockedCount = opts.blockedCount || (() => 0);
     this.resetBlocked = opts.resetBlocked || (() => {});
+    // Told a main frame is on its way, before the document is parsed. uBlock
+    // needs this: Electron has no navigation event of its own to give it.
+    this.onNavigate = opts.onNavigate || (() => {});
 
     this.tabs = new Map();     // id -> tab
     this.order = [];           // tab ids, left to right
@@ -172,6 +175,7 @@ class TabManager {
     wc.on('did-stop-loading', () => { tab.loading = false; push(); });
     wc.on('did-start-navigation', (e) => {
       if (!e.isMainFrame) return;
+      if (e.isSameDocument !== true) this.onNavigate(wc.id, e.url);
       this.resetBlocked(wc.id);
       // Drop the old site's icon straight away rather than showing it against
       // the new one's title for however long the next page takes to load.
