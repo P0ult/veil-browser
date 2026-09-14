@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data:">
+<title>Bookmarks</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="pages.css">
+<style>
+  .tools { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; }
+  .tools input[type="search"] {
+    flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    font: inherit; font-size: 13.5px;
+  }
+  .tools input[type="search"]:focus { outline: none; border-color: var(--border-strong); }
+  .tools select {
+    padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font: inherit; font-size: 13px;
+  }
+
+  .group { margin-bottom: 26px; }
+  .group h3 {
+    margin: 0 0 8px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-3); font-weight: 600;
+  }
+  .mark-list { display: flex; flex-direction: column; }
+  .bm {
+    display: flex; align-items: center; gap: 12px;
+    padding: 9px 10px; border-bottom: 1px solid var(--border);
+  }
+  .bm:last-child { border-bottom: 0; }
+  .bm:hover { background: var(--surface); border-radius: 8px; }
+  .bm .dot { width: 22px; height: 22px; border-radius: 6px; flex: none; display: grid; place-items: center;
+             font-size: 11px; font-weight: 700; color: #0b0e13; }
+  .bm .text { flex: 1; min-width: 0; cursor: pointer; }
+  .bm .text b { display: block; font-weight: 500; font-size: 13.5px; color: var(--text);
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bm .text small { display: block; color: var(--text-3); font-size: 11.5px;
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bm .kill {
+    flex: none; border: 0; background: transparent; color: var(--text-3); cursor: pointer;
+    padding: 4px 8px; border-radius: 6px; font-size: 12px; opacity: 0;
+  }
+  .bm:hover .kill { opacity: 1; }
+  .bm .kill:hover { background: var(--surface-3); color: var(--bad); }
+  .empty { color: var(--text-3); font-size: 13px; }
+</style>
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l2.4 5 5.6.8-4 3.9 1 5.5-5-2.7-5 2.7 1-5.5-4-3.9 5.6-.8z"/></symbol>
+</svg>
+
+<div class="wrap wide" style="padding:56px 0 80px">
+  <div class="mark" style="margin-bottom:10px">
+    <svg><use href="#i-star"/></svg>
+    <span class="name">Bookmarks</span>
+  </div>
+  <p class="sub" style="margin-bottom:26px">
+    Pages you asked Veil to remember. This is not history — Veil has none — it is only what you
+    put here. <a id="go-import" style="cursor:pointer">Import from another browser</a>.
+  </p>
+
+  <div class="tools">
+    <input type="search" id="filter" placeholder="Search bookmarks" spellcheck="false">
+    <select id="folder"><option value="">All folders</option></select>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<script src="theme.js"></script>
+<script src="bookmarks.js"></script>
+</body>
+</html>

@@ -615,6 +615,9 @@ function renderAll() {
 }
 
 veil.onSettings((s) => { settings = s; VeilTheme.apply(s); hydrate(true); });
+$('go-import').addEventListener('click', () => veil.go('veil://import/'));
+$('go-bookmarks').addEventListener('click', () => veil.go('veil://bookmarks/'));
+
 veil.onVpn(renderVpn);
 veil.onTunnel(renderTunnel);
 veil.onUpdate(renderUpdate);

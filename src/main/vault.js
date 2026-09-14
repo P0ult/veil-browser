@@ -298,6 +298,54 @@ class Vault {
     return this.list();
   }
 
+  /**
+   * Many logins at once, from another browser's export.
+   *
+   * Not a loop over save(): that re-encrypts and rewrites the whole vault for
+   * each entry, so importing five hundred passwords would write the file five
+   * hundred times. This collects them and writes once.
+   *
+   * A login already here is left exactly as it is. Same site, same username
+   * means the same login, and the one you have is the one you have been using
+   * - an import should never quietly replace a working password with an older
+   * one out of a file.
+   */
+  importMany(list) {
+    this.requireOpen();
+
+    const keyFor = (origin, username) =>
+      (hostOf(origin) || String(origin || '')).toLowerCase() + '|' +
+      String(username || '').toLowerCase();
+
+    const seen = new Set(this.entries.map(e => keyFor(e.origin, e.username)));
+    let added = 0, already = 0, rejected = 0;
+
+    for (const raw of Array.isArray(list) ? list : []) {
+      const origin = originOf(raw && raw.origin) || String((raw && raw.origin) || '').trim();
+      const password = String((raw && raw.password) || '');
+      if (!origin || !password) { rejected++; continue; }
+
+      const k = keyFor(origin, raw.username);
+      if (seen.has(k)) { already++; continue; }
+      seen.add(k);
+
+      this.entries.push({
+        id: randomId(),
+        title: String(raw.title || '').trim() || hostOf(origin).replace(/^www\./, ''),
+        origin,
+        username: String(raw.username || ''),
+        password,
+        notes: '',
+        created: now(),
+        updated: now()
+      });
+      added++;
+    }
+
+    if (added) this.writeAll();
+    return { added, already, rejected, total: this.entries.length };
+  }
+
   remove(id) {
     this.requireOpen();
     const i = this.entries.findIndex(x => x.id === id);

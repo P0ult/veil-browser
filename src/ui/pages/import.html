@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' veil:; script-src veil:; img-src veil: data:">
+<title>Import</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="pages.css">
+<style>
+  .found { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .found .one {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface);
+  }
+  .found .one .what { flex: 1; min-width: 0; }
+  .found .one .what b { font-weight: 600; font-size: 13.5px; }
+  .found .one .what small { display: block; color: var(--text-3); font-size: 12px; }
+  .result { margin-top: 10px; font-size: 12.5px; color: var(--text-2); }
+  .result[data-kind="bad"] { color: var(--bad); }
+  .result[data-kind="good"] { color: var(--ok); }
+  ol.steps { margin: 6px 0 0; padding-left: 20px; color: var(--text-3); font-size: 12px; line-height: 1.7; }
+  ol.steps code { font-size: 11.5px; }
+</style>
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-import" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M8 10.5l4 4 4-4"/><path d="M4 19.5h16"/></symbol>
+</svg>
+
+<div class="wrap" style="padding:56px 0 80px">
+  <div class="mark" style="margin-bottom:10px">
+    <svg><use href="#i-import"/></svg>
+    <span class="name">Import</span>
+  </div>
+  <p class="sub" style="margin-bottom:30px">
+    Bring your bookmarks and your saved logins over from another browser. Nothing leaves this
+    machine: the files are read here and written straight into Veil.
+  </p>
+
+  <section class="card">
+    <h2>Bookmarks</h2>
+
+    <div class="row" id="sources-row">
+      <div class="info">
+        <label>Found on this machine</label>
+        <small id="sources-note">Looking…</small>
+        <div class="found" id="sources"></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="info">
+        <label>Or from a file you exported</label>
+        <small>An exported bookmarks <code>.html</code> from any browser — Firefox and Safari
+          included — or a Chromium <code>Bookmarks</code> file.</small>
+      </div>
+      <div class="ctl"><button class="btn" id="pick-bookmarks">Choose a file…</button></div>
+    </div>
+
+    <div class="row" id="bookmarks-result-row" hidden>
+      <div class="info"><div class="result" id="bookmarks-result"></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Passwords</h2>
+
+    <div class="row">
+      <div class="info">
+        <label>From an exported CSV</label>
+        <small id="pw-note">Chrome, Edge, Firefox, Safari and the password managers all export
+          one. Veil reads it and writes the logins into your vault, encrypted.</small>
+        <ol class="steps">
+          <li>In your other browser, open its password settings.</li>
+          <li>Export passwords to a CSV file. It will ask you to confirm who you are.</li>
+          <li>Choose that file here.</li>
+          <li><b>Delete the CSV afterwards.</b> It is every password you have, in plain text.</li>
+        </ol>
+      </div>
+      <div class="ctl"><button class="btn" id="pick-passwords">Choose a CSV…</button></div>
+    </div>
+
+    <div class="row" id="passwords-result-row" hidden>
+      <div class="info"><div class="result" id="passwords-result"></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>What Veil will not import</h2>
+    <div class="row">
+      <div class="info">
+        <label>Browsing history</label>
+        <small>There is nowhere to put it. Veil has no history feature at all — no database, no
+          interface, nothing recording the pages you visit. Importing somebody else's record of
+          that would be the one thing this browser exists not to do.</small>
+      </div>
+    </div>
+    <div class="row">
+      <div class="info">
+        <label>Cookies and sessions</label>
+        <small>Signing in again is a few minutes; a copied session cookie is a copy of your
+          account sitting in two places.</small>
+      </div>
+    </div>
+    <div class="row">
+      <div class="info">
+        <label>Extensions</label>
+        <small>Veil does not run extensions from a shop. It carries uBlock Origin itself, which
+          is the one most people were installing.</small>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="theme.js"></script>
+<script src="import.js"></script>
+</body>
+</html>

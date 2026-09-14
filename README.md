@@ -35,6 +35,8 @@ about a query touches disk.
 | **Ad and tracker blocking** | A full Adblock Plus / uBlock Origin filter engine, matching in `webRequest` before a packet leaves the machine: network patterns with resource types, first- and third-party rules, per-site rules and exceptions. EasyList, EasyPrivacy and uBlock Origin's own lists ship inside the app - about 116,000 rules - and refresh from their sources. |
 | **Adverts inside the page's own data** | Some adverts cannot be blocked by refusing a request - YouTube describes its adverts inside the same JSON the player needs to play the video. uBlock Origin's scriptlets handle these, and are kept current by its maintainers rather than by this project. |
 | **YouTube adverts** | Yes. uBlock Origin runs inside Veil, patched to work under Electron, and its scriptlets take the advert data out of the player before it is read - on a watch page opened directly and on a video clicked through to inside the site. Settings -> Privacy -> Use uBlock Origin. |
+| **Bookmarks** | `veil://bookmarks`, and `Ctrl D` to keep the page you are on. Not history - Veil has none - only what you asked it to remember. |
+| **Importing** | `veil://import` brings bookmarks and saved logins over from another browser. Bookmarks are read straight out of Chrome, Edge, Brave, Vivaldi or Opera if they are installed; passwords come from a CSV you export. Nothing leaves the machine. |
 | **Blocking statistics** | `veil://stats` keeps a running count of what has been refused: the domains, how often, and whether an advert list or a tracking list named them, with a chart of the last thirty days. It is deliberately not history — the domain that was turned away is recorded, never the page you were reading when it happened. |
 | **Reader view** | Strips a page to the thing you came to read. Runs in the preload, so no site's Content-Security-Policy can refuse it, and nothing is fetched or sent anywhere. |
 | **No empty ad boxes** | Cosmetic filtering from the same lists collapses the containers a blocked ad leaves behind. The page says which class and id names it contains and is sent only the rules that could match one, so it carries forty selectors rather than forty thousand. |
@@ -200,6 +202,47 @@ commits rather than after it has painted at the wrong size.
 **A tab making a noise** shows a speaker button, in the tab strip and in the
 vertical rail, and clicking it silences that tab. It appears only when there is
 a sound to stop.
+
+## Bookmarks, and coming from another browser
+
+Veil has no history and never will: nothing records the pages you visit. A
+bookmark is the opposite kind of thing - you asked for it, by name - so those it
+does keep, in `bookmarks.json` in the profile. A history is a record made about
+you; a bookmark is a note made by you.
+
+`veil://import` moves both across from whatever you were using before.
+
+**Bookmarks** need nothing exported. Every Chromium-family browser keeps them in
+a plain JSON file that is not encrypted, so Veil looks for Chrome, Edge, Brave,
+Vivaldi and Opera in the places each of them uses on this platform, counts what
+it finds, and offers to read it. Folders come across as folders. An exported
+`.html` works too, which is the route for Firefox and Safari - and for a
+javascript: bookmarklet, which is refused, because that is somebody else's
+script waiting to run on whatever page you are on.
+
+**Passwords** come from a CSV you export yourself. That is not squeamishness:
+Chrome encrypts its password store with a key held by the operating system, and
+recent versions bind that key to the browser binary, so reading it would mean
+impersonating Chrome to the keystore. Exporting also means you can see exactly
+what you are handing over. The formats Chrome, Edge, Firefox, Safari, Bitwarden
+and 1Password write all differ slightly - different column names, quoted fields
+holding commas and newlines - and `src/main/importer.js` reads all of them into
+the vault, encrypted, in one write.
+
+A login already in the vault is left alone. Same site and same username means
+the same login, and the one you have is the one you have been using, so an
+import never replaces a working password with an older one out of a file.
+
+The page says plainly that the CSV should be deleted afterwards. It is every
+password you have, in plain text, sitting in your downloads folder.
+
+Three things are deliberately not imported, and the page says so rather than
+quietly skipping them: **history**, because there is nowhere to put it and
+importing somebody else's record of where you have been is the one thing this
+browser exists not to do; **cookies and sessions**, because signing in again
+takes a minute and a copied session cookie is your account in two places at
+once; and **extensions**, because Veil does not run them - it carries uBlock
+Origin itself, which is the one most people were installing.
 
 ## The search engine
 
@@ -482,6 +525,8 @@ switching the profile between in-memory and on-disk.
 | `Ctrl +` / `Ctrl -` / `Ctrl 0` | Zoom, remembered per site |
 | `Ctrl Alt R` | Reader view |
 | `Ctrl ,` | Settings |
+| `Ctrl D` | Bookmark this page |
+| `Ctrl Shift O` | Bookmarks |
 | `Ctrl Shift P` | Passwords |
 | `Ctrl Shift C` | Copy the current address |
 | `Ctrl Shift I` | Developer tools |

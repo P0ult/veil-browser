@@ -1304,6 +1304,19 @@ if (isInternal) {
       clear: () => ipcRenderer.invoke('stats:clear')
     },
 
+    bookmarks: {
+      list: () => ipcRenderer.invoke('bookmarks:list'),
+      add: (item) => ipcRenderer.invoke('bookmarks:add', item),
+      remove: (id) => ipcRenderer.invoke('bookmarks:remove', id)
+    },
+
+    importer: {
+      sources: () => ipcRenderer.invoke('import:sources'),
+      bookmarksFrom: (file) => ipcRenderer.invoke('import:bookmarks-from', file),
+      bookmarksFile: () => ipcRenderer.invoke('import:bookmarks-file'),
+      passwordsFile: () => ipcRenderer.invoke('import:passwords-file')
+    },
+
     tunnel: {
       status: () => ipcRenderer.invoke('tunnel:status'),
       toggle: () => ipcRenderer.invoke('tunnel:toggle'),

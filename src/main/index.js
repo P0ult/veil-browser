@@ -7,6 +7,8 @@ const { Settings, isLightColour, baseBackground } = require('./settings');
 const { AdBlock } = require('./adblock');
 const { UBlockOrigin } = require('./ubo');
 const { BlockStats } = require('./stats');
+const { Bookmarks } = require('./bookmarks');
+const importer = require('./importer');
 const { NetPrivacy } = require('./net-privacy');
 const { SearchEngine } = require('./search');
 const { Vpn } = require('./vpn');
@@ -53,7 +55,7 @@ registerScheme();
 const DEV = process.argv.includes('--dev');
 const CHROME_MIN_H = 78;
 
-let settings, adblock, ubo, blockStats, netPrivacy, searchEngine, vpn, tunnel, vault, updater, tabs;
+let settings, adblock, ubo, blockStats, bookmarks, netPrivacy, searchEngine, vpn, tunnel, vault, updater, tabs;
 let win = null, chromeView = null, railView = null, browseSession = null, searchSession = null;
 
 /* The chrome's shape and, when it floats, how much of it is out.
@@ -469,6 +471,24 @@ const actions = {
     tabs.rememberZoom(wc, wc.getZoomFactor());
     pushState();
   },
+  /** Keep this page, or stop keeping it. */
+  bookmarkPage() {
+    const tab = tabs && tabs.active();
+    if (!tab) return;
+    if (bookmarks.has(tab.url)) {
+      bookmarks.removeUrl(tab.url);
+      sendChrome('veil:toast', { kind: 'info', text: 'Bookmark removed' });
+    } else {
+      try {
+        bookmarks.add({ url: tab.url, title: tab.title });
+        sendChrome('veil:toast', { kind: 'ok', text: 'Bookmarked' });
+      } catch (e) {
+        sendChrome('veil:toast', { kind: 'warn', text: e.message });
+      }
+    }
+    pushState();
+  },
+
   /** Silence the tab that is making a noise. */
   muteTab(id) {
     if (!tabs) return;
@@ -1157,6 +1177,111 @@ function wireIpc() {
     }
   });
 
+  /* ---- bookmarks ---- */
+
+  ipcMain.handle('bookmarks:list', guard(() => ({
+    items: bookmarks.list(),
+    folders: bookmarks.folders()
+  })));
+
+  ipcMain.handle('bookmarks:add', guard((e, item) => {
+    const added = bookmarks.add(item || {});
+    return { added: !!added, items: bookmarks.list() };
+  }));
+
+  ipcMain.handle('bookmarks:remove', guard((e, id) => bookmarks.remove(String(id || ''))));
+
+  ipcMain.handle('bookmarks:has', guard((e, url) => bookmarks.has(String(url || ''))));
+
+  /** The star in the toolbar: bookmark this page, or stop. */
+  ipcMain.handle('bookmarks:toggle', guard(() => {
+    const tab = tabs && tabs.active();
+    if (!tab) return { bookmarked: false };
+    if (bookmarks.has(tab.url)) {
+      bookmarks.removeUrl(tab.url);
+      return { bookmarked: false };
+    }
+    bookmarks.add({ url: tab.url, title: tab.title });
+    return { bookmarked: true };
+  }));
+
+  /* ---- importing from another browser ---- */
+
+  /** Which browsers on this machine have bookmarks Veil could read. */
+  ipcMain.handle('import:sources', guard(() => {
+    const { bookmarkFiles } = require('./platform');
+    return bookmarkFiles().map(f => {
+      let count = 0;
+      try { count = importer.parseBookmarksFile(f.file).items.length; } catch {}
+      return { browser: f.browser, profile: f.profile, file: f.file, count };
+    }).filter(f => f.count > 0);
+  }));
+
+  /** Bookmarks straight out of another browser's profile. */
+  ipcMain.handle('import:bookmarks-from', guard((e, file) => {
+    const wanted = String(file || '');
+    const { bookmarkFiles } = require('./platform');
+    // Only a file this machine actually offered. A renderer naming its own
+    // path would otherwise be asking the main process to read any file it
+    // likes and hand back the contents.
+    if (!bookmarkFiles().some(f => f.file === wanted)) {
+      throw new Error('Not a bookmarks file Veil offered');
+    }
+    const parsed = importer.parseBookmarksFile(wanted);
+    return Object.assign(bookmarks.addMany(parsed.items), { format: parsed.format });
+  }));
+
+  /** Bookmarks out of a file the user picked. */
+  ipcMain.handle('import:bookmarks-file', guard(async () => {
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Choose an exported bookmarks file',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Bookmarks', extensions: ['html', 'htm', 'json'] },
+        { name: 'All files', extensions: ['*'] }
+      ]
+    });
+    if (r.canceled || !r.filePaths[0]) return { cancelled: true };
+    const parsed = importer.parseBookmarksFile(r.filePaths[0]);
+    return Object.assign(bookmarks.addMany(parsed.items), { format: parsed.format });
+  }));
+
+  /** Logins out of a CSV the user exported from their other browser. */
+  ipcMain.handle('import:passwords-file', guard(async () => {
+    if (!vault.unlocked()) {
+      return { locked: true, added: 0, already: 0, rejected: 0 };
+    }
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Choose an exported passwords CSV',
+      properties: ['openFile'],
+      filters: [
+        { name: 'CSV', extensions: ['csv', 'txt'] },
+        { name: 'All files', extensions: ['*'] }
+      ]
+    });
+    if (r.canceled || !r.filePaths[0]) return { cancelled: true };
+
+    const file = r.filePaths[0];
+    let text = '';
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch (err) {
+      throw new Error('Could not read that file: ' + err.message);
+    }
+
+    const parsed = importer.parsePasswordCsv(text);
+    const result = vault.importMany(parsed.entries);
+
+    /* The file is left where it is, but it is worth saying out loud what it
+       is: a list of every password in plain text. Veil will not delete
+       somebody's file for them, so it says so instead and the person decides. */
+    return Object.assign(result, {
+      format: parsed.format,
+      unreadable: parsed.skipped,
+      file
+    });
+  }));
+
   ipcMain.handle('stats:summary', guard(() => blockStats.summary()));
   ipcMain.handle('stats:clear', guard(() => { blockStats.clear(); return blockStats.summary(); }));
 
@@ -1418,6 +1543,7 @@ if (!gotLock) {
 
     adblock = new AdBlock(settings);
     blockStats = new BlockStats({ enabled: settings.get('privacy.blockStats', true) });
+    bookmarks = new Bookmarks();
 
     /* uBlock Origin, which does the part of this that is a moving target: the
        scriptlets that take the adverts out of a video page. Veil's own engine

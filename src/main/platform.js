@@ -125,6 +125,85 @@ const VPN_PICKER = MAC
     ? { title: 'Locate the Tunnel VPN program', filters: [{ name: 'Programs', extensions: ['*'] }] }
     : { title: 'Locate TunnelVPN.exe', filters: [{ name: 'Programs', extensions: ['exe'] }] };
 
+/* -------------------------------------------------- other browsers on disk
+
+   Where the Chromium-family browsers keep the file that holds their
+   bookmarks. It is plain JSON and unencrypted, which is why importing them
+   needs nothing from the user but permission.
+
+   Passwords are deliberately absent from this list. Chrome and its relatives
+   encrypt those with a key held by the operating system, and newer versions
+   bind that key to the browser binary itself; reading them would mean
+   impersonating another application to its own keystore. Veil asks for an
+   exported file instead - which also means the user sees exactly what they
+   are handing over.
+
+   Firefox is absent for a different reason: its bookmarks live in a SQLite
+   database, and shipping an SQLite reader to avoid one export step is not a
+   trade worth making. Its HTML export imports like any other.               */
+
+const ROAMING = process.env.APPDATA || path.join(HOME, 'AppData', 'Roaming');
+
+/** Every Chromium-family browser this knows about, by where its data lives. */
+function chromiumFamily() {
+  if (MAC) {
+    const app = path.join(HOME, 'Library', 'Application Support');
+    return [
+      { name: 'Chrome', dir: path.join(app, 'Google', 'Chrome') },
+      { name: 'Edge', dir: path.join(app, 'Microsoft Edge') },
+      { name: 'Brave', dir: path.join(app, 'BraveSoftware', 'Brave-Browser') },
+      { name: 'Vivaldi', dir: path.join(app, 'Vivaldi') },
+      { name: 'Opera', dir: path.join(app, 'com.operasoftware.Opera') },
+    ];
+  }
+  if (LINUX) {
+    return [
+      { name: 'Chrome', dir: path.join(XDG_CONFIG, 'google-chrome') },
+      { name: 'Chromium', dir: path.join(XDG_CONFIG, 'chromium') },
+      { name: 'Edge', dir: path.join(XDG_CONFIG, 'microsoft-edge') },
+      { name: 'Brave', dir: path.join(XDG_CONFIG, 'BraveSoftware', 'Brave-Browser') },
+      { name: 'Vivaldi', dir: path.join(XDG_CONFIG, 'vivaldi') },
+      { name: 'Opera', dir: path.join(XDG_CONFIG, 'opera') },
+    ];
+  }
+  return [
+    { name: 'Chrome', dir: path.join(LOCAL_APP_DATA, 'Google', 'Chrome', 'User Data') },
+    { name: 'Edge', dir: path.join(LOCAL_APP_DATA, 'Microsoft', 'Edge', 'User Data') },
+    { name: 'Brave', dir: path.join(LOCAL_APP_DATA, 'BraveSoftware', 'Brave-Browser', 'User Data') },
+    { name: 'Vivaldi', dir: path.join(LOCAL_APP_DATA, 'Vivaldi', 'User Data') },
+    { name: 'Opera', dir: path.join(ROAMING, 'Opera Software', 'Opera Stable') },
+  ];
+}
+
+/**
+ * Every bookmarks file on this machine that Veil could read, as
+ * { browser, profile, file }.
+ *
+ * A Chromium profile directory is "Default", or "Profile 1" and up, and each
+ * holds its own Bookmarks file. Opera keeps one at the top level instead.
+ */
+function bookmarkFiles() {
+  const found = [];
+  for (const { name, dir } of chromiumFamily()) {
+    try {
+      if (!fs.existsSync(dir)) continue;
+
+      const top = path.join(dir, 'Bookmarks');
+      if (fs.existsSync(top)) found.push({ browser: name, profile: '', file: top });
+
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name !== 'Default' && !/^Profile \d+$/.test(entry.name)) continue;
+        const file = path.join(dir, entry.name, 'Bookmarks');
+        if (fs.existsSync(file)) {
+          found.push({ browser: name, profile: entry.name, file });
+        }
+      }
+    } catch {}
+  }
+  return found;
+}
+
 /* ------------------------------------------------------- names for the UI
 
    The settings and password pages describe what holds a secret and what holds
@@ -171,6 +250,7 @@ const APP_ICON = path.join(__dirname, '..', '..', 'assets', WINDOWS ? 'icon.ico'
 module.exports = {
   MAC, WINDOWS, LINUX, UNIX, APP_ICON,
   KEYSTORE_NAME, KEYSTORE_SHORT, SYSTEM_PROXY_NAME, describe,
+  chromiumFamily, bookmarkFiles,
   firstExisting,
   VPN_CTRL_DIR, vpnCandidates, VPN_PROCESS_MARKS, PROCESS_LIST_CMD, VPN_PICKER,
   TOR_BUNDLE_PLATFORM, TOR_BINARY,
