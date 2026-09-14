@@ -104,7 +104,8 @@ function broadcast(channel, payload) {
   if (!tabs) return;
   for (const t of tabs.tabs.values()) {
     if (!t.url.startsWith('veil://')) continue;
-    try { t.view.webContents.send(channel, payload); } catch {}
+    const wc = TabManager.contentsOf(t);
+    if (wc) { try { wc.send(channel, payload); } catch {} }
   }
 }
 
@@ -303,7 +304,8 @@ function closeCentreSearch() {
   if (floating()) { wantToolbar = 0; toolbarShown = 0; }
   relayout();
   const t = tabs && tabs.active();
-  if (t) t.view.webContents.focus();
+  const wc = TabManager.contentsOf(t);
+  if (wc) wc.focus();
 }
 
 /** Turn whatever the user typed into a URL: address, bang, or search. */
@@ -347,7 +349,8 @@ function guardOn(fn) {
 function tabForSender(sender) {
   if (!tabs) return null;
   for (const t of tabs.tabs.values()) {
-    if (t.view.webContents.id === sender.id) return t;
+    const wc = TabManager.contentsOf(t);
+    if (wc && wc.id === sender.id) return t;
   }
   return null;
 }
@@ -383,7 +386,8 @@ const actions = {
     const url = resolveInput(text);
     if (!url) return;
     const t = sender ? tabForSender(sender) : null;
-    if (t) t.view.webContents.loadURL(url).catch(() => {});
+    const wc = TabManager.contentsOf(t);
+    if (wc) wc.loadURL(url).catch(() => {});
     else tabs.navigate(url);
   },
   searchFor(query, newTab) {
@@ -451,7 +455,8 @@ const actions = {
     if (!host) return;
     const on = adblock.isAllowedSite(host);      // currently paused -> turn back on
     adblock.toggleSite(host, on);
-    t.view.webContents.reload();
+    const wc = TabManager.contentsOf(t);
+    if (wc) wc.reload();
     sendChrome('veil:toast', {
       kind: 'info',
       text: on ? 'Blocking resumed on ' + host : 'Blocking paused on ' + host
@@ -503,7 +508,9 @@ async function pollVpn() {
     sendChrome('veil:vpn', s);
     if (tabs) {
       for (const t of tabs.tabs.values()) {
-        if (t.url.startsWith('veil://')) { try { t.view.webContents.send('veil:vpn', s); } catch {} }
+        if (!t.url.startsWith('veil://')) continue;
+        const wc = TabManager.contentsOf(t);
+        if (wc) { try { wc.send('veil:vpn', s); } catch {} }
       }
     }
   } catch {}

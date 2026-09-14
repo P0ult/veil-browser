@@ -120,7 +120,11 @@ function buildAppMenu(ctx) {
 /** Right-click menu inside a page. */
 function pageContextMenu(ctx, tab, params) {
   const { actions, settings } = ctx;
-  const wc = tab.view.webContents;
+  // A tab whose page has ended itself has no webContents to act on. Nothing
+  // should be able to right-click one, but an empty menu beats a thrown
+  // dialog if anything ever does.
+  const wc = tab && tab.view && tab.view.webContents;
+  if (!wc || wc.isDestroyed()) return new Menu();
   const menu = new Menu();
   const add = o => menu.append(new MenuItem(o));
   let need = false;

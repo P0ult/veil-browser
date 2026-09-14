@@ -35,11 +35,33 @@ class TabManager {
     this.order = [];           // tab ids, left to right
     this.activeId = null;
     this.closedStack = [];     // in-memory only, cleared on quit
+    this.closing = false;      // true once the window is going away
   }
+
+  /**
+   * The webContents of a tab, or null if it no longer has one.
+   *
+   * A page can end its own view: `window.close()` from a popup does it, which
+   * is exactly how Google's sign-in flow finishes. Electron then leaves
+   * `view.webContents` undefined, and every later read of it - redrawing the
+   * tab strip, answering an IPC message - threw
+   * `Cannot read properties of undefined (reading 'id')` until the browser had
+   * thrown a dialog for each one. Nothing reaches into `view.webContents`
+   * directly any more; it comes through here.
+   */
+  static contentsOf(tab) {
+    if (!tab || !tab.view) return null;
+    const wc = tab.view.webContents;
+    if (!wc || wc.isDestroyed()) return null;
+    return wc;
+  }
+
+  /** The webContents of a tab by id, or null. */
+  contents(id) { return TabManager.contentsOf(this.tabs.get(id)); }
 
   get(id) { return this.tabs.get(id); }
   active() { return this.tabs.get(this.activeId); }
-  activeContents() { const t = this.active(); return t && t.view.webContents; }
+  activeContents() { return TabManager.contentsOf(this.active()); }
 
   /** The site a URL belongs to, as zoom and mute are both remembered by site. */
   static siteOf(url) {
@@ -78,9 +100,8 @@ class TabManager {
   /** Silence a tab, or let it speak again. */
   toggleMute(id) {
     const tab = this.tabs.get(id != null ? id : this.activeId);
-    if (!tab) return false;
-    const wc = tab.view.webContents;
-    if (wc.isDestroyed()) return false;
+    const wc = TabManager.contentsOf(tab);
+    if (!wc) return false;
     tab.muted = !wc.isAudioMuted();
     wc.setAudioMuted(tab.muted);
     this.emit();
@@ -90,7 +111,8 @@ class TabManager {
   /** Top-level URL for a given webContents id — used by the privacy layer. */
   topUrlFor(wcId) {
     for (const t of this.tabs.values()) {
-      if (t.view.webContents.id === wcId) return t.url;
+      const wc = TabManager.contentsOf(t);
+      if (wc && wc.id === wcId) return t.url;
     }
     return '';
   }
@@ -296,6 +318,9 @@ class TabManager {
       this.emit();
     });
 
+    // The page ended its own view - a popup calling window.close(), most often.
+    wc.on('destroyed', () => this.gone(tab.id));
+
     wc.on('render-process-gone', () => {
       tab.loading = false;
       tab.title = 'Page crashed';
@@ -317,10 +342,12 @@ class TabManager {
     if (prev && prev.id !== id) prev.view.setVisible(false);
     this.activeId = id;
     const t = this.active();
+    if (!t) return;
     t.view.setBounds(this.contentBounds());
     t.view.setVisible(true);
     this.win.contentView.addChildView(t.view);     // keep above the chrome strip
-    t.view.webContents.focus();
+    const wc = TabManager.contentsOf(t);
+    if (wc) wc.focus();
     this.emit();
   }
 
@@ -338,17 +365,39 @@ class TabManager {
 
     try {
       this.win.contentView.removeChildView(tab.view);
-      tab.view.webContents.close();
+      const wc = TabManager.contentsOf(tab);
+      if (wc) wc.close();
     } catch {}
 
-    if (this.activeId === id) {
-      this.activeId = null;
-      const next = this.order[Math.min(idx, this.order.length - 1)];
-      if (next != null) this.select(next);
-      else this.create(this.settings.get('browser.newTabPage', 'veil://home/'));
-    } else {
-      this.emit();
-    }
+    this.afterRemoved(id, idx);
+  }
+
+  /**
+   * A tab whose page ended itself.
+   *
+   * `window.close()` from a popup destroys the view without anything here
+   * being asked to close it - Google's sign-in window does precisely that when
+   * it is finished. The entry has to go the same way it would have on a close,
+   * or the strip keeps drawing a tab whose contents no longer exist.
+   */
+  gone(id) {
+    // On the way out every view is destroyed at once, and replacing them as
+    // they go would open a new tab during shutdown.
+    if (this.closing) return;
+    if (!this.tabs.has(id)) return;
+    const idx = this.order.indexOf(id);
+    if (idx !== -1) this.order.splice(idx, 1);
+    this.tabs.delete(id);
+    this.afterRemoved(id, idx === -1 ? 0 : idx);
+  }
+
+  /** Pick what to show once a tab has left, and say so. */
+  afterRemoved(id, idx) {
+    if (this.activeId !== id) { this.emit(); return; }
+    this.activeId = null;
+    const next = this.order[Math.min(idx, this.order.length - 1)];
+    if (next != null) this.select(next);
+    else this.create(this.settings.get('browser.newTabPage', 'veil://home/'));
   }
 
   reopenClosed() {
@@ -372,8 +421,8 @@ class TabManager {
   }
 
   navigate(url) {
-    const t = this.active();
-    if (t) t.view.webContents.loadURL(url).catch(() => {});
+    const wc = this.activeContents();
+    if (wc) wc.loadURL(url).catch(() => {});
   }
 
   /** Serialisable state for the chrome UI. */
@@ -383,6 +432,7 @@ class TabManager {
       tabs: this.order.map(id => {
         const t = this.tabs.get(id);
         if (!t) return null;
+        const wc = TabManager.contentsOf(t);
         return {
           id: t.id,
           title: t.title,
@@ -391,8 +441,8 @@ class TabManager {
           loading: t.loading,
           canGoBack: t.canGoBack,
           canGoForward: t.canGoForward,
-          blocked: this.blockedCount(t.view.webContents.id),
-          zoom: Math.round(t.view.webContents.getZoomFactor() * 100),
+          blocked: wc ? this.blockedCount(wc.id) : 0,
+          zoom: wc ? Math.round(wc.getZoomFactor() * 100) : 100,
           muted: t.muted,
           audible: t.audible
         };
@@ -403,8 +453,12 @@ class TabManager {
   emit() { this.onUpdate(this.state()); }
 
   destroyAll() {
+    this.closing = true;
     for (const t of this.tabs.values()) {
-      try { t.view.webContents.close(); } catch {}
+      try {
+        const wc = TabManager.contentsOf(t);
+        if (wc) wc.close();
+      } catch {}
     }
     this.tabs.clear();
     this.order = [];
