@@ -212,10 +212,12 @@ function renderDownloads() {
    expander left no way back. The width is reported on every frame of the
    animation so the main process can move in step.                          */
 
-// Shorter than they were. The delay before it starts is what reads as lag;
-// the slide itself is what reads as animation, and only the second one is
-// worth having.
-const PEEK_IN = 90, PEEK_OUT = 120, PEEK_MS = 130;
+// The delay before it starts is what reads as lag; the slide itself is what
+// reads as animation, and only the second one is worth having. Opening now
+// waits barely long enough to tell a pointer passing over the rail from one
+// arriving at it. Closing still waits longer, because a pointer that leaves
+// for a moment and comes back should not have to sit through it twice.
+const PEEK_IN = 35, PEEK_OUT = 140, PEEK_MS = 120;
 const RAIL_MIN = 52;
 let peekTimer = null, peekRaf = 0, railW = RAIL_MIN;
 
@@ -226,8 +228,20 @@ function fullWidth() {
 
 function collapsed() { return els.rail.dataset.collapsed === '1'; }
 
+/** How wide the rail sits when nothing is hovering over it. */
+function restingWidth() {
+  return collapsed() ? RAIL_MIN : fullWidth();
+}
+
+/* Both numbers, every time.
+ *
+ * The main process needs to tell a peek - where only the rail moves, over the
+ * top of everything else - from a real change of width, where the page and the
+ * toolbar have to move with it. It cannot work that out from one number, and
+ * getting it wrong means either a peek that relayouts the whole window on
+ * every frame or a collapsed sidebar that leaves a gap where it used to be. */
 function report() {
-  veil.reportRail({ width: Math.round(railW) });
+  veil.reportRail({ width: Math.round(railW), resting: Math.round(restingWidth()) });
 }
 
 function slide(to, done) {
@@ -249,14 +263,31 @@ function peek(on) {
   clearTimeout(peekTimer);
   peekTimer = setTimeout(() => {
     if (!collapsed()) { delete els.rail.dataset.peek; return; }
-    if (on) { els.rail.dataset.peek = '1'; slide(fullWidth()); }
-    else slide(RAIL_MIN, () => { delete els.rail.dataset.peek; report(); });
+    if (on) {
+      // Set first: the rail lays itself out at full width once, and the view
+      // then widens to reveal what is already there.
+      if (els.rail.dataset.peek !== '1') els.rail.dataset.peek = '1';
+      slide(fullWidth());
+    } else {
+      slide(RAIL_MIN, () => { delete els.rail.dataset.peek; report(); });
+    }
   }, on ? PEEK_IN : PEEK_OUT);
 }
 
-document.documentElement.addEventListener('mouseenter', () => peek(true));
-document.documentElement.addEventListener('mousemove', () => peek(true));
-document.documentElement.addEventListener('mouseleave', () => peek(false));
+/* mousemove fires for every pixel the pointer travels. Re-arming the open
+   timer on each one pushed the start of the animation further away the more
+   the pointer moved, which is the opposite of what it should do - so once the
+   rail is open, or already opening, a move is not news. */
+let peekWanted = false;
+const wantPeek = (on) => {
+  if (on === peekWanted) return;
+  peekWanted = on;
+  peek(on);
+};
+
+document.documentElement.addEventListener('mouseenter', () => wantPeek(true));
+document.documentElement.addEventListener('mousemove', () => wantPeek(true));
+document.documentElement.addEventListener('mouseleave', () => wantPeek(false));
 
 /* ---------------------------------------------------------------- wiring */
 
@@ -273,6 +304,7 @@ function applySettings(s) {
   cancelAnimationFrame(peekRaf);
   clearTimeout(peekTimer);
   delete els.rail.dataset.peek;
+  peekWanted = false;
   railW = isCollapsed ? RAIL_MIN : fullWidth();
   document.documentElement.style.setProperty('--rail-full', fullWidth() + 'px');
 

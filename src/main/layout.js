@@ -51,4 +51,41 @@ function computeLayout(o) {
   };
 }
 
-module.exports = { computeLayout };
+/**
+ * What to do about a width the rail has just reported.
+ *
+ * The rail sends two numbers on every frame of its open-and-close animation:
+ * how wide it is now, and how wide it means to be when nothing is hovering it.
+ * Telling those apart is the difference between a smooth animation and a
+ * laggy one:
+ *
+ *   'rail-only'  the rail is peeking open over the top of everything else.
+ *                Only its own rectangle changes. This is most of the frames.
+ *   'full'       its resting width really changed - the sidebar was collapsed,
+ *                or its width setting edited - so the page and the toolbar
+ *                have to move with it.
+ *   'none'       nothing has changed since the last report.
+ *
+ * Every frame used to be treated as 'full', which relaid out the rail, the
+ * toolbar and every page view sixty times a second for an animation in which
+ * one edge moves.
+ *
+ * @param {object} current { railW, peek } as the window has them now
+ * @param {number} width   what the rail says it is
+ * @param {number} resting what the rail says it will settle at
+ */
+function railUpdate(current, width, resting) {
+  const clamp = (v) => Math.max(0, Math.min(600, Math.round(Number(v) || 0)));
+  const now = clamp(width);
+  const rest = clamp(resting === undefined || resting === null ? width : resting);
+  const peek = Math.max(0, now - rest);
+
+  const wasW = clamp(current && current.railW);
+  const wasPeek = Math.max(0, Math.round(Number(current && current.peek) || 0));
+
+  if (rest !== wasW) return { mode: 'full', railW: rest, peek };
+  if (peek !== wasPeek) return { mode: 'rail-only', railW: rest, peek };
+  return { mode: 'none', railW: rest, peek };
+}
+
+module.exports = { computeLayout, railUpdate };

@@ -15,7 +15,7 @@ const { Vault } = require('./vault');
 const { VPN_PICKER, APP_ICON, describe } = require('./platform');
 const identity = require('./identity');
 const { edgesReached } = require('./hover');
-const { computeLayout } = require('./layout');
+const { computeLayout, railUpdate } = require('./layout');
 const { Updater } = require('./updater');
 const crypto = require('node:crypto');
 const { TabManager } = require('./tabs');
@@ -194,6 +194,57 @@ function centreBox(w, h) {
   return { x: Math.round((w - width) / 2), y: Math.round(h * 0.24), width, height };
 }
 
+/* How much wider than its resting width the rail currently is, while the
+   pointer is on it. Zero when it is not peeking. */
+let railPeek = 0;
+
+/**
+ * Move only the rail.
+ *
+ * A peek used to go through relayout(), which meant every frame of it resized
+ * the toolbar and every page view as well as the rail - three documents laid
+ * out again, sixty times a second, for an animation in which only one edge
+ * actually moves. The page and the toolbar stay exactly where they are now and
+ * the rail slides out over the top of them, which is what floating already
+ * does and costs nothing.
+ */
+function layoutRail() {
+  if (!win || win.isDestroyed() || !railView) return;
+  const [w, h] = win.getContentSize();
+  const float = floating();
+
+  const L = computeLayout({
+    width: w, height: h,
+    mode: chromeLayout.mode,
+    toolbarH: chromeLayout.toolbarH,
+    railW: chromeLayout.railW,
+    floating: float,
+    toolbarShown: float ? toolbarShown : 1,
+    railShown: float ? railShown : 1
+  });
+
+  const base = L.rail;
+  if (!base) return;
+  railView.setBounds({
+    x: base.x,
+    y: base.y,
+    width: Math.max(0, base.width + railPeek),
+    height: base.height
+  });
+}
+
+/**
+ * The rail has to be above the toolbar while it is peeking, or the part it
+ * opens into is drawn behind it. Everything else wants the toolbar on top.
+ */
+function stackForPeek(peeking) {
+  if (!win || win.isDestroyed()) return;
+  const order = peeking ? [chromeView, railView] : [railView, chromeView];
+  for (const view of order) {
+    if (view) { try { win.contentView.addChildView(view); } catch {} }
+  }
+}
+
 function relayout() {
   if (!win) return;
   const [w, h] = win.getContentSize();
@@ -215,7 +266,10 @@ function relayout() {
   if (railView) {
     // An absent rail is parked at zero size rather than removed, so that
     // switching tab layouts does not tear down and rebuild its document.
-    railView.setBounds(L.rail || { x: 0, y: 0, width: 0, height: 0 });
+    const rail = L.rail;
+    railView.setBounds(rail
+      ? { x: rail.x, y: rail.y, width: Math.max(0, rail.width + railPeek), height: rail.height }
+      : { x: 0, y: 0, width: 0, height: 0 });
   }
   if (tabs) {
     tabs.inset = { top: L.page.y, left: L.page.x };
@@ -234,9 +288,9 @@ function relayout() {
  */
 function raiseChrome() {
   if (!win || win.isDestroyed()) return;
-  for (const view of [railView, chromeView]) {
-    if (view) { try { win.contentView.addChildView(view); } catch {} }
-  }
+  // While the rail is peeking it belongs on top, or opening a tab mid-peek
+  // would drop it behind the toolbar for as long as the pointer stayed there.
+  stackForPeek(railPeek > 0);
 }
 
 /* ---------------------------------------------------- sliding the chrome
@@ -794,11 +848,21 @@ function wireIpc() {
   ipcMain.on('ui:centre-close', guardOn(() => closeCentreSearch()));
 
   ipcMain.on('ui:rail', guardOn((e, r) => {
-    const raw = Number(r && r.width);
-    const railW = Number.isFinite(raw) ? Math.max(0, Math.min(600, Math.round(raw))) : 0;
-    if (railW === chromeLayout.railW) return;
-    chromeLayout = { mode: chromeLayout.mode, toolbarH: chromeLayout.toolbarH, railW };
-    relayout();
+    if (!r || !Number.isFinite(Number(r.width))) return;
+
+    const was = { railW: chromeLayout.railW, peek: railPeek };
+    const next = railUpdate(was, r.width, r.resting);
+    if (next.mode === 'none') return;
+
+    const wasPeeking = railPeek > 0;
+    chromeLayout = { mode: chromeLayout.mode, toolbarH: chromeLayout.toolbarH, railW: next.railW };
+    railPeek = next.peek;
+
+    if (next.mode === 'full') relayout();
+    else layoutRail();
+
+    // Only when it starts or stops peeking, not on every frame of it.
+    if (wasPeeking !== (railPeek > 0)) stackForPeek(railPeek > 0);
   }));
 
   ipcMain.on('win:minimize', guardOn(() => win && win.minimize()));

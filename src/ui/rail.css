@@ -13,6 +13,7 @@ html, body { overflow: hidden; background: transparent; height: 100%; }
   flex-direction: column;
   height: 100vh;
   width: 100%;
+  /* See the peek rule below for why this one matters. */
   /* Its own token, so the rail can be a different colour from everything
      else without the rest of the chrome following it. */
   background: var(--rail-bg, var(--bg));
@@ -20,6 +21,16 @@ html, body { overflow: hidden; background: transparent; height: 100%; }
   user-select: none;
   overflow: hidden;
 }
+
+/* While the rail is peeking open, it is laid out at its full width straight
+   away and the native view widens to reveal it.
+
+   The alternative - letting the element follow the view, a hundred times a
+   second - relaid out the whole rail on every frame of the animation, which is
+   what made it feel heavy. This way the document is laid out twice for a peek,
+   at the start and at the end, and the frames in between are the compositor
+   moving an edge. */
+#rail[data-peek="1"] { width: var(--rail-full); }
 
 /* Floating over a page needs an edge you can see against any background. */
 #rail[data-float="1"] {
@@ -47,9 +58,14 @@ html, body { overflow: hidden; background: transparent; height: 100%; }
 
 /* ------------------------------------------------------------- shortcuts */
 
+/* Three across, which for the six that ship is two rows.
+   Narrow, only the left column is shown - so the block is still two rows tall
+   and the tabs below it do not move when the rail goes narrow or wide. Four
+   across meant six shortcuts became two rows wide and six rows narrow, and
+   everything under them jumped down the moment the pointer left. */
 .shortcuts {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 6px 8px 10px;
   flex: none;
@@ -239,7 +255,11 @@ html, body { overflow: hidden; background: transparent; height: 100%; }
 #rail[data-collapsed="1"] .title,
 #rail[data-collapsed="1"] .close { display: none; }
 #rail[data-collapsed="1"] .head { padding: 0 8px; justify-content: center; }
+/* One column, holding the first of every three: the left-hand column of the
+   wide grid, and the same number of rows as it. */
 #rail[data-collapsed="1"] .shortcuts { grid-template-columns: 1fr; }
+#rail[data-collapsed="1"] .shortcut { display: none; }
+#rail[data-collapsed="1"] .shortcut:nth-child(3n + 1) { display: grid; }
 #rail[data-collapsed="1"] .tab,
 #rail[data-collapsed="1"] .add,
 #rail[data-collapsed="1"] .foot button { justify-content: center; padding: 0; }
@@ -250,7 +270,8 @@ html, body { overflow: hidden; background: transparent; height: 100%; }
 #rail[data-collapsed="1"][data-peek="1"] .title,
 #rail[data-collapsed="1"][data-peek="1"] .close { display: revert; }
 #rail[data-collapsed="1"][data-peek="1"] .head { padding: 0 10px 0 12px; justify-content: flex-start; }
-#rail[data-collapsed="1"][data-peek="1"] .shortcuts { grid-template-columns: repeat(4, 1fr); }
+#rail[data-collapsed="1"][data-peek="1"] .shortcuts { grid-template-columns: repeat(3, 1fr); }
+#rail[data-collapsed="1"][data-peek="1"] .shortcut { display: grid; }
 #rail[data-collapsed="1"][data-peek="1"] .tab,
 #rail[data-collapsed="1"][data-peek="1"] .add,
 #rail[data-collapsed="1"][data-peek="1"] .foot button { justify-content: flex-start; padding: 0 8px; }
