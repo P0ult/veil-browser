@@ -615,6 +615,25 @@ function renderAll() {
 }
 
 veil.onSettings((s) => { settings = s; VeilTheme.apply(s); hydrate(true); });
+$('ai-test').addEventListener('click', async () => {
+  const note = $('ai-test-note');
+  $('ai-test').disabled = true;
+  note.textContent = 'Asking…';
+  try {
+    const r = await veil.aiTest();
+    note.textContent = r.ok ? 'Reachable — ' + r.detail : 'No answer — ' + r.detail;
+  } catch (e) {
+    note.textContent = 'No answer — ' + (e.message || e);
+  } finally {
+    $('ai-test').disabled = false;
+  }
+});
+
+$('ollama-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  veil.openExternal('https://ollama.com');
+});
+
 $('go-import').addEventListener('click', () => veil.go('veil://import/'));
 $('go-bookmarks').addEventListener('click', () => veil.go('veil://bookmarks/'));
 

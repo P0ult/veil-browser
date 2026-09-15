@@ -9,6 +9,7 @@ const { UBlockOrigin } = require('./ubo');
 const { BlockStats } = require('./stats');
 const { Bookmarks } = require('./bookmarks');
 const importer = require('./importer');
+const { AiAnswer } = require('./ai');
 const { NetPrivacy } = require('./net-privacy');
 const { SearchEngine } = require('./search');
 const { Vpn } = require('./vpn');
@@ -55,7 +56,7 @@ registerScheme();
 const DEV = process.argv.includes('--dev');
 const CHROME_MIN_H = 78;
 
-let settings, adblock, ubo, blockStats, bookmarks, netPrivacy, searchEngine, vpn, tunnel, vault, updater, tabs;
+let settings, adblock, ubo, blockStats, bookmarks, netPrivacy, searchEngine, ai, vpn, tunnel, vault, updater, tabs;
 let win = null, chromeView = null, railView = null, browseSession = null, searchSession = null;
 
 /* The chrome's shape and, when it floats, how much of it is out.
@@ -1144,6 +1145,23 @@ function wireIpc() {
     }
   }));
 
+  /**
+   * The short answer, asked for separately.
+   *
+   * Not part of search:run, because a model takes seconds and the results
+   * should not wait behind it. The page renders its results, then asks for
+   * this and slots it in above them when it arrives.
+   */
+  ipcMain.handle('search:ai', guard(async (e, q, context) => {
+    const safe = (Array.isArray(context) ? context : []).slice(0, 5).map(r => ({
+      title: String((r && r.title) || '').slice(0, 300),
+      snippet: String((r && r.snippet) || '').slice(0, 600)
+    }));
+    return ai.ask(String(q || '').slice(0, 400), safe);
+  }));
+
+  ipcMain.handle('search:ai-test', guard(() => ai.test()));
+
   ipcMain.handle('search:images', guard(async (e, q, page) => {
     return searchEngine.images(String(q || ''), Math.max(1, Number(page) || 1));
   }));
@@ -1573,6 +1591,9 @@ if (!gotLock) {
       }
     });
     searchEngine = new SearchEngine(settings, searchSession);
+    // Answers travel the same way searches do: through the search session, so
+    // the tunnel carries them like everything else.
+    ai = new AiAnswer(settings, searchSession);
     searchEngine.warmUp();
 
     /* Keep the filter lists current without being asked.

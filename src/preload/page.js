@@ -1293,6 +1293,8 @@ if (isInternal) {
     searchNews: (q, page) => ipcRenderer.invoke('search:news', q, page),
     searchShopping: (q, page) => ipcRenderer.invoke('search:shopping', q, page),
     searchUrlFor: (q) => ipcRenderer.invoke('search:url-for', q),
+    aiAnswer: (q, context) => ipcRenderer.invoke('search:ai', q, context),
+    aiTest: () => ipcRenderer.invoke('search:ai-test'),
 
     adblock: {
       stats: () => ipcRenderer.invoke('adblock:stats'),

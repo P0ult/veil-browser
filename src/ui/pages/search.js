@@ -430,6 +430,50 @@ function emptyBox(heading, detail) {
 
 function secs(ms) { return ((ms || 0) / 1000).toFixed(1) + 's'; }
 
+/* ------------------------------------------------------------ the short answer
+
+   Above everything, because it is the answer: a date, a name, a number. If the
+   model cannot find it in the results it says nothing at all, which is the
+   right behaviour for a box that claims to know something.                   */
+
+let answerToken = 0;
+
+function clearAnswer() {
+  answerToken++;
+  const box = $('ai');
+  if (box) { box.hidden = true; box.replaceChildren(); }
+}
+
+async function askAi(query, results) {
+  const box = $('ai');
+  if (!box) return;
+
+  const mine = ++answerToken;
+
+  // Nothing is shown while it thinks. A box that appears empty and fills in
+  // later moves the results down the page underneath the pointer.
+  let r;
+  try {
+    r = await veil.aiAnswer(query, results.slice(0, 5).map(x => ({
+      title: x.title, snippet: x.snippet
+    })));
+  } catch { return; }
+
+  if (mine !== answerToken) return;          // a newer search has started
+  if (!r || !r.answer) return;               // off, unreachable, or it did not know
+
+  const text = document.createElement('div');
+  text.className = 'ai-text';
+  text.textContent = r.answer;
+
+  const note = document.createElement('div');
+  note.className = 'ai-note';
+  note.textContent = 'answered by ' + (r.model || 'your model') + ' from the results below';
+
+  box.replaceChildren(text, note);
+  box.hidden = false;
+}
+
 /* Which source answered. Said only when it is not the usual one, so the line
    stays quiet in the ordinary case and explains itself on the day DuckDuckGo
    turns Veil away and something else picks it up. */
@@ -685,6 +729,7 @@ async function run() {
 
   $('out').replaceChildren(skeleton());
   $('side').replaceChildren();
+  clearAnswer();
 
   const data = await veil.search(query, page);
   const out = document.createDocumentFragment();
@@ -698,6 +743,11 @@ async function run() {
   } else {
     for (const r of data.results) out.append(renderResult(r));
   }
+
+  // The short answer, asked for once the results are on screen: a model takes
+  // seconds, and nothing should wait behind it. Page one only - an answer
+  // belongs to the question, not to page seven of its results.
+  if (data.page === 1 && data.results.length) askAi(query, data.results);
 
   const bits = [];
   if (data.results.length) bits.push(data.results.length + ' results');

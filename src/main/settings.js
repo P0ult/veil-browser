@@ -14,7 +14,7 @@ function findVpn() {
 }
 
 const DEFAULTS = {
-  version: 9,
+  version: 10,
   appearance: {
     accent: '#7dd3a0',
     bgType: 'gradient',            // solid | gradient | image
@@ -57,6 +57,24 @@ const DEFAULTS = {
     hideAiImages: true,            // drop image results that look model-generated
     stripTrackingParams: true,
     openResultsInNewTab: false,
+    /* A short answer above the results, read out of those results by a model.
+     *
+     * Off, and off for a reason worth stating: everything else here is
+     * arranged so that what you search for does not leave the machine except
+     * to the search engines themselves. This sends the query, and the titles
+     * and snippets of the first few results, to whatever endpoint is named
+     * below. No endpoint ships with Veil - there is nothing to send to until
+     * somebody puts their own there, which is the only arrangement where the
+     * answer is nobody else's business. */
+    ai: {
+      enabled: false,
+      endpoint: '',              // an Ollama server: http://localhost:11434, or a tunnel to one
+      /* A tunnel gets a new address every restart, so the address is published
+         to a gist and read from there. This is the one Veil ships with; empty
+         means that same one. Anything in `endpoint` above wins over it. */
+      gistId: 'ad01e8789efedd3cdecbf48498c8b31c',
+      model: 'llama3.1:8b'
+    },
     bangs: {
       w: 'https://en.wikipedia.org/wiki/Special:Search?search=%s',
       yt: 'https://www.youtube.com/results?search_query=%s',
@@ -326,6 +344,20 @@ function migrate(data) {
     if (b.openPdf === undefined) b.openPdf = true;
 
     data.version = 9;
+    changed = true;
+  }
+
+  if (data.version === 9) {
+    // The answer box. New, and off - a profile that has never heard of it must
+    // not find itself sending queries somewhere because of an upgrade.
+    const search = data.search || (data.search = {});
+    if (!isObj(search.ai)) search.ai = {};
+    if (search.ai.enabled === undefined) search.ai.enabled = false;
+    if (search.ai.endpoint === undefined) search.ai.endpoint = '';
+    if (!search.ai.gistId) search.ai.gistId = 'ad01e8789efedd3cdecbf48498c8b31c';
+    if (search.ai.model === undefined) search.ai.model = 'llama3.1:8b';
+
+    data.version = 10;
     changed = true;
   }
 

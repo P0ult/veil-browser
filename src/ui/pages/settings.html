@@ -272,6 +272,60 @@
         <div class="ctl"><button class="switch" role="switch" data-bind="search.stripTrackingParams"></button></div>
       </div>
 
+      <h2>Short answer</h2>
+
+      <div class="row">
+        <div class="info">
+          <label>Answer above the results</label>
+          <small><b>Off by default, and it changes where your searching goes.</b> Everything else in
+            Veil is arranged so that what you look for reaches nobody but the search engines. With
+            this on, your query and the titles and snippets of the first five results are sent to a
+            model, which answers in a few words. Veil ships pointed at the one it was built
+            alongside &mdash; a private machine, not a company &mdash; and you can point it at your
+            own instead. Nothing is sent anywhere while this is off.</small>
+        </div>
+        <div class="ctl"><button class="switch" role="switch" data-bind="search.ai.enabled"></button></div>
+      </div>
+
+      <div class="row" data-when="search.ai.enabled=true">
+        <div class="info">
+          <label>Address</label>
+          <small>An <a href="https://ollama.com" id="ollama-link">Ollama</a> server.
+            <code>http://localhost:11434</code> if it runs on this machine, or the address of a
+            tunnel to one. <code>/api/generate</code> is added for you.</small>
+        </div>
+        <div class="ctl"><input type="text" data-bind="search.ai.endpoint" style="width:300px" spellcheck="false" placeholder="http://localhost:11434"></div>
+      </div>
+
+      <div class="row" data-when="search.ai.enabled=true">
+        <div class="info">
+          <label>Or a gist holding the address</label>
+          <small>A tunnel gets a new address every time it restarts, so the address is published to
+            a gist and Veil reads it from there &mdash; again by itself whenever the one it has
+            stops answering. Veil ships with a gist already filled in here, which is why the box
+            above can be left empty. Clearing this box puts the shipped one back. Used only when
+            there is no address above.</small>
+        </div>
+        <div class="ctl"><input type="text" data-bind="search.ai.gistId" style="width:300px" spellcheck="false" placeholder="ad01e8789efedd3cdecbf48498c8b31c"></div>
+      </div>
+
+      <div class="row" data-when="search.ai.enabled=true">
+        <div class="info">
+          <label>Model</label>
+          <small>Whatever that server has pulled. A small one is enough: the model is not asked
+            what it knows, only to read the answer out of the results.</small>
+        </div>
+        <div class="ctl"><input type="text" data-bind="search.ai.model" style="width:200px" spellcheck="false"></div>
+      </div>
+
+      <div class="row" data-when="search.ai.enabled=true">
+        <div class="info">
+          <label>Is it reachable?</label>
+          <small id="ai-test-note">Sends one word to the address above and waits for a reply.</small>
+        </div>
+        <div class="ctl"><button class="btn" id="ai-test">Test</button></div>
+      </div>
+
       <h2>Bangs</h2>
       <div class="note">Type <code>!yt cats</code> to jump straight to a site. One per line, <code>key = url</code> with <code>%s</code>.</div>
       <textarea id="bangs" rows="8" spellcheck="false"></textarea>

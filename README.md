@@ -50,7 +50,7 @@ about a query touches disk.
 | **Fingerprinting** | Per-site noise on canvas, WebGL and audio readings, plus normalised CPU/memory/language. Randomisation, not Tor-style uniformity — see below. The user agent, the client hints and the page-side objects all give one consistent answer, which is what stops sites treating Veil as an embedded browser. |
 | **HTTPS** | An upgraded address that will not load over TLS shows a warning page. Veil never falls back to plaintext on its own. |
 | **Updates** | Veil knows how old its own Chromium is and says so, and can update itself when a release feed is configured. |
-| **No AI** | Nothing summarises, completes, suggests or calls a model. The address bar has no dropdown at all — that is the point, not an omission. |
+| **No AI, unless you ask for it** | Nothing summarises, completes or suggests, and the address bar has no dropdown at all — that is the point, not an omission. One exception, off until you switch it on: a short answer above the search results, from a self-hosted model rather than a company. |
 
 ## Running uBlock Origin
 
@@ -269,6 +269,60 @@ Wikipedia or any custom `%s` URL.
 
 **Bangs** work in the address bar: `!yt orbital mechanics`, `!w tardigrade`,
 `!gh electron`. The table is editable in Settings.
+
+## The short answer
+
+Off. It stays off unless you turn it on and type in an address, and there is no
+address to fall back on: none ships with Veil.
+
+With it on, a question typed into Veil search gets one line above the results.
+
+```
+when is christmas          →   25 December
+who wrote dracula          →   Bram Stoker
+how tall is the eiffel tower  →   330 m
+```
+
+That is the whole feature. No paragraph, no preamble, no offer of further help.
+If the answer is not in the results it says nothing at all and the box does not
+appear.
+
+**Where it goes.** Everything else in this browser is arranged so that what you
+search for reaches nobody but the search engines. This does not: your query, and
+the titles and snippets of the first five results, are sent to the address you
+configured. Nothing else goes — not the URLs, not which result you clicked, not
+anything about the page you were on. It travels through the browsing session, so
+the tunnel carries it like everything else.
+
+The address is an [Ollama](https://ollama.com) server: `http://localhost:11434`
+if it runs on the same machine, or a tunnel to one elsewhere. No account, no
+key, no company in the middle.
+
+Veil ships pointed at one, so switching it on is the whole setup. A quick tunnel
+gets a new address every time it restarts, so the current one is published to a
+gist and Veil reads it from there — again by itself whenever the address it has
+stops answering. `scripts/publish-ai-endpoint.ps1` starts the tunnel and writes
+the new address into the gist; run that and the browser keeps up on its own.
+
+**That shipped address is not private.** The gist id is in this repository, so
+anyone reading it can find the tunnel, and a quick tunnel has no authentication
+in front of it. It is one person's machine offered for convenience, and it is
+off until you turn it on. Put your own address in Settings → Search → Short
+answer to opt out of it entirely — a pinned address always wins over the gist.
+The Test button there says whether it answered, how long it took, and whether
+the address came from the gist.
+
+**It is not asked what it knows.** The model is handed the search results and
+told to read the answer out of them, which is the difference between a browser
+that answers a question and one that makes something up. Asked for the
+population of Mars with only a page about its moons to work from, it returns
+nothing rather than a number.
+
+**It never delays the results.** The search renders first; the answer is asked
+for afterwards and slots in above when it arrives. A model that is unreachable,
+slow or switched off costs a search nothing at all. The first request of a
+session is the slow one - a cold Ollama loads the model, measured at 23s over a
+tunnel - and every one after it came back in about a second.
 
 ## The tunnel
 

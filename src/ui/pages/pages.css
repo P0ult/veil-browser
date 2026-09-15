@@ -169,6 +169,29 @@ body { display: flex; flex-direction: column; }
 
 /* ---------------------------------------------------------------- results */
 
+/* The short answer. Big enough to read at a glance and be done - the whole
+   point is not having to open anything. */
+.ai {
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.ai .ai-text {
+  font-size: 21px;
+  line-height: 1.35;
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.ai .ai-note {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
 .results-head {
   position: sticky;
   top: 0;
