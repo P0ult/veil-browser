@@ -104,12 +104,41 @@ function Test-GistAccess {
     Write-Host "Token accepted for $($me.login), gist is writable."
 }
 
+<#
+    Write the address, and leave exactly one address behind.
+
+    A gist can hold several files, and GitHub hands them back in name order
+    rather than in the order they were written - so a gist filled in by hand as
+    `gistfile1.txt` and then written by this script as `veil-ai-endpoint.txt`
+    holds two addresses, of which the stale one sorts first. Veil prefers the
+    file this script writes, but the tidy thing is not to leave the other one
+    lying there at all.
+
+    Only files whose whole content is an address are removed. Anything else in
+    the gist is somebody's notes and is left alone.
+#>
 function Write-Gist {
     param([string] $Address)
 
-    $body = @{
-        files = @{ $FileName = @{ content = "$Address`n" } }
-    } | ConvertTo-Json -Depth 5
+    $files = @{ $FileName = @{ content = "$Address`n" } }
+
+    try {
+        $current = Invoke-RestMethod -Method Get -Uri "https://api.github.com/gists/$GistId" -Headers $script:Headers
+        foreach ($name in $current.files.PSObject.Properties.Name) {
+            if ($name -eq $FileName) { continue }
+            $content = $current.files.$name.content
+            if ($content -and $content.Trim() -match '^https?://[^\s]+$') {
+                # A stale address in another file: remove it, so the gist holds
+                # one address and there is nothing to read the wrong one from.
+                $files[$name] = $null
+                Write-Host "  Removing a stale address from $name"
+            }
+        }
+    } catch {
+        # Not worth failing the publish over; the preferred file still wins.
+    }
+
+    $body = @{ files = $files } | ConvertTo-Json -Depth 5
 
     Invoke-RestMethod -Method Patch -Uri "https://api.github.com/gists/$GistId" `
         -Headers $script:Headers -Body $body -ContentType 'application/json' | Out-Null

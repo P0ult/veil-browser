@@ -43,6 +43,13 @@ const DEFAULT_MODEL = 'llama3.1:8b';
  * entirely; a pinned address always wins over this. */
 const DEFAULT_GIST = 'ad01e8789efedd3cdecbf48498c8b31c';
 
+/* The file the publishing script writes. A gist can hold several files, and
+   GitHub returns them in name order rather than in the order they were
+   written, so a stale address in a file named earlier in the alphabet would
+   otherwise win over the current one. This name is preferred; anything else is
+   only a fallback for a gist somebody filled in by hand. */
+const GIST_FILE = 'veil-ai-endpoint.txt';
+
 const GIST_API = 'https://api.github.com/gists/';
 const GIST_TTL_MS = 5 * 60 * 1000;
 /* The first connection of a session is the slow one - measured at over twenty
@@ -215,7 +222,16 @@ class AiAnswer {
 
         const json = await res.json();
         const files = (json && json.files) || {};
-        for (const file of Object.values(files)) {
+
+        // The file the script writes first, then any other, so a gist written
+        // by hand still works and a stale leftover never outranks the current
+        // address.
+        const named = files[GIST_FILE];
+        const ordered = named
+          ? [ named, ...Object.entries(files).filter(([n]) => n !== GIST_FILE).map(([, f]) => f) ]
+          : Object.values(files);
+
+        for (const file of ordered) {
           const text = String((file && file.content) || '');
           const m = /https?:\/\/[^\s"'<>]+/.exec(text);
           if (m) return m[0].replace(/[.,;]+$/, '');
@@ -368,4 +384,4 @@ class AiAnswer {
   }
 }
 
-module.exports = { AiAnswer, buildPrompt, tidy, DEFAULT_MODEL, DEFAULT_GIST };
+module.exports = { AiAnswer, buildPrompt, tidy, DEFAULT_MODEL, DEFAULT_GIST, GIST_FILE };
