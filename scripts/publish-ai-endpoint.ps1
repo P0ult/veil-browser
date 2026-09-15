@@ -44,6 +44,66 @@ if (-not $Token) {
     throw "No token. Set `$env:GITHUB_TOKEN to a GitHub token with the 'gist' scope, or pass -Token."
 }
 
+if ($Token -eq 'ghp_yourtokenhere' -or $Token -match '^ghp_your') {
+    throw "That is the example token, not a real one. Make one at github.com > Settings > Developer settings > Personal access tokens > Tokens (classic), tick only 'gist', then: `$env:GITHUB_TOKEN = 'ghp_...'"
+}
+
+$script:Headers = @{
+    Authorization          = "Bearer $Token"
+    Accept                 = 'application/vnd.github+json'
+    'X-GitHub-Api-Version' = '2022-11-28'
+    'User-Agent'           = 'veil-publish-ai-endpoint'
+}
+
+<#
+    Turn whatever GitHub said into something worth reading. A 401 here means
+    one of three things and the message should say which, rather than leaving
+    somebody to read a stack trace.
+#>
+function Get-GitHubReason {
+    param($ErrorRecord)
+
+    $status = $null
+    try { $status = [int]$ErrorRecord.Exception.Response.StatusCode } catch { }
+
+    switch ($status) {
+        401 { return "401 Unauthorized - the token is wrong, expired, or lacks the 'gist' scope." }
+        403 { return '403 Forbidden - the token is valid but not allowed to write this gist.' }
+        404 { return "404 Not Found - no gist with that id, or it belongs to another account." }
+        default {
+            if ($status) { return "$status from GitHub." }
+            return $ErrorRecord.Exception.Message
+        }
+    }
+}
+
+<# Can this token write this gist? Asked before the tunnel starts, so a bad
+   token costs a second rather than a started-and-killed tunnel. #>
+function Test-GistAccess {
+    try {
+        $gist = Invoke-RestMethod -Method Get -Uri "https://api.github.com/gists/$GistId" -Headers $script:Headers
+    } catch {
+        throw "Cannot read the gist: $(Get-GitHubReason $_)"
+    }
+
+    if (-not $gist.owner) {
+        Write-Warning 'The gist has no owner in the response; writing may fail.'
+        return
+    }
+
+    try {
+        $me = Invoke-RestMethod -Method Get -Uri 'https://api.github.com/user' -Headers $script:Headers
+    } catch {
+        throw "The token was refused: $(Get-GitHubReason $_)"
+    }
+
+    if ($gist.owner.login -ne $me.login) {
+        throw "That gist belongs to $($gist.owner.login), and the token is $($me.login)'s. Only the owner can write it."
+    }
+
+    Write-Host "Token accepted for $($me.login), gist is writable."
+}
+
 function Write-Gist {
     param([string] $Address)
 
@@ -51,16 +111,14 @@ function Write-Gist {
         files = @{ $FileName = @{ content = "$Address`n" } }
     } | ConvertTo-Json -Depth 5
 
-    $headers = @{
-        Authorization          = "Bearer $Token"
-        Accept                 = 'application/vnd.github+json'
-        'X-GitHub-Api-Version' = '2022-11-28'
-        'User-Agent'           = 'veil-publish-ai-endpoint'
-    }
-
     Invoke-RestMethod -Method Patch -Uri "https://api.github.com/gists/$GistId" `
-        -Headers $headers -Body $body -ContentType 'application/json' | Out-Null
+        -Headers $script:Headers -Body $body -ContentType 'application/json' | Out-Null
 }
+
+# Before anything is started: is the token any good, and is the gist ours to
+# write? Both are one request, and finding out now beats finding out after a
+# tunnel has been opened.
+Test-GistAccess
 
 # Is Ollama actually up? Saying so now beats a tunnel to nothing.
 try {
@@ -94,15 +152,28 @@ try {
 
         if (-not $published -and $line -match 'https://[a-z0-9-]+\.trycloudflare\.com') {
             $address = $Matches[0]
-            Write-Gist -Address $address
-            $published = $true
 
-            Write-Host ''
-            Write-Host "  Address : $address"
-            Write-Host "  Gist    : https://gist.github.com/$GistId"
-            Write-Host ''
-            Write-Host 'Written to the gist. Veil will pick it up within five minutes, or'
-            Write-Host 'immediately if you press Test in Settings > Search > Short answer.'
+            # A tunnel that is up is worth keeping even if the gist write
+            # fails: the address can be pasted into Veil by hand, and killing
+            # the tunnel over a bad token helps nobody.
+            try {
+                Write-Gist -Address $address
+                $published = $true
+
+                Write-Host ''
+                Write-Host "  Address : $address"
+                Write-Host "  Gist    : https://gist.github.com/$GistId"
+                Write-Host ''
+                Write-Host 'Written to the gist. Veil will pick it up within five minutes, or'
+                Write-Host 'immediately if you press Test in Settings > Search > Short answer.'
+            } catch {
+                Write-Warning "The tunnel is up but the gist was not written: $(Get-GitHubReason $_)"
+                Write-Host ''
+                Write-Host "  Address : $address"
+                Write-Host ''
+                Write-Host 'Paste that into Veil: Settings > Search > Short answer > Address.'
+            }
+
             Write-Host ''
             Write-Host 'Leave this window open. Ctrl+C stops the tunnel.'
         }
